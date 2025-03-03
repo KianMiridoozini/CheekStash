@@ -1,26 +1,52 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
+// import { LoginUserDto } from '../users/dto/login-user.dto';
+import { ChangePasswordDto } from '../users/dto/change-password.dto';
+import { UserDocument } from '../users/schemas/user.schema';
 
 @Injectable()
 export class AuthService {
   constructor(
-    private usersService: UsersService,
-    private jwtService: JwtService,
+    private readonly usersService: UsersService,
+    private readonly jwtService: JwtService,
   ) {}
 
-  async validateUser(email: string, password: string): Promise<any> {
+  /**
+   * Validate user credentials.
+   */
+  async validateUser(email: string, password: string): Promise<UserDocument> {
     const user = await this.usersService.findByEmail(email);
-    if (user && (await bcrypt.compare(password, user.passwordHash))) {
-      const { passwordHash, ...result } = user.toObject();
-      return result; // Return user object without passwordHash
+    if (!user) {
+      throw new NotFoundException('User not found');
     }
-    throw new UnauthorizedException('Invalid credentials');
+    const isValid = await bcrypt.compare(password, user.passwordHash);
+    if (!isValid) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+    return user;
   }
 
-  async login(user: any) {
-    const payload = { id: user._id, username: user.username, email: user.email };
-    return { access_token: this.jwtService.sign(payload) };
+  /**
+   * Login: Accepts a user document and returns a JWT token.
+   */
+  async login(user: UserDocument): Promise<{ token: string }> {
+    const token = this.jwtService.sign({ id: user._id });
+    return { token };
+  }
+
+  async changePassword(
+    userId: string,
+    changePasswordDto: ChangePasswordDto,
+  ): Promise<{ message: string }> {
+    return this.usersService.changePassword(userId, changePasswordDto);
+  }
+
+  async deleteUser(
+    requester: { id: string; role: string },
+    confirmPassword: string,
+  ): Promise<{ message: string }> {
+    return this.usersService.deleteUser(requester.id, confirmPassword, requester);
   }
 }

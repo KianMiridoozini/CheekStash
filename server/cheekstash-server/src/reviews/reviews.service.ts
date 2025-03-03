@@ -15,8 +15,8 @@ export class ReviewsService {
   async createReview(createReviewDto: CreateReviewDto, userId: string, username: string): Promise<Review> {
     const newReview = new this.reviewModel({
       ...createReviewDto,
-      userId, // Storing user ID of the reviewer
-      username, // Storing the username for easier access
+      userId,
+      username,
     });
     return newReview.save();
   }

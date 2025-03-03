@@ -6,7 +6,10 @@ import { AppModule } from './app.module';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  // global validation pipes
+  // Global prefix for all routes
+  app.setGlobalPrefix('api');
+
+  // Global validation pipes
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

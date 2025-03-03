@@ -4,13 +4,13 @@ export class UserResponseDto {
   @ApiProperty({ example: '60d5f48e9d3b8f0015a1b3c2', description: 'User ID' })
   id: string;
 
-  @ApiProperty({ example: 'john_doe', description: 'Unique username' })
+  @ApiProperty({ example: 'Test_bunny', description: 'Unique username' })
   username: string;
 
-  @ApiProperty({ example: 'john@example.com', description: 'Email address' })
+  @ApiProperty({ example: 'test@bunny.com', description: 'Email address' })
   email: string;
 
-  @ApiProperty({ example: 'John Doe', description: 'User display name' })
+  @ApiProperty({ example: 'Test Bunny', description: 'User display name' })
   displayName?: string;
 
   @ApiProperty({ example: 'I love collecting links!', description: 'User bio' })

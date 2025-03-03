@@ -4,6 +4,7 @@ import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { HttpCode } from '@nestjs/common';
 
 @ApiTags('reviews')
 @Controller('reviews')
@@ -14,6 +15,7 @@ export class ReviewsController {
    * Create a new review (Protected: Requires authentication)
    */
   @Post()
+  @HttpCode(201)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth() // Adds "Authorize" button in Swagger
   @ApiOperation({ summary: 'Submit a review for a collection' })
@@ -25,6 +27,7 @@ export class ReviewsController {
    * Get all reviews for a collection
    */
   @Get(':collectionId')
+  @HttpCode(200)
   @ApiOperation({ summary: 'Get all reviews for a specific collection' })
   async getReviews(@Param('collectionId') collectionId: string) {
     return this.reviewsService.getReviewsForCollection(collectionId);
@@ -34,6 +37,7 @@ export class ReviewsController {
    * Update a review (Protected: Only the review owner)
    */
   @Put(':reviewId')
+  @HttpCode(200)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update an existing review (only by owner)' })
@@ -49,6 +53,7 @@ export class ReviewsController {
    * Delete a review (Protected: Only the review owner)
    */
   @Delete(':reviewId')
+  @HttpCode(200)
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete a review (only by owner)' })

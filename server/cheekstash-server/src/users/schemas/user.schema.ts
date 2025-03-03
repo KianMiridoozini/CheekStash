@@ -24,7 +24,6 @@ export class User {
     avatarUrl?: string;
   };
 
-  // Optional: for follow/subscribe functionality.
   @Prop({ type: [String], default: [] })
   followedUsers: string[];
 }

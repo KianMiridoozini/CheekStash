@@ -7,186 +7,173 @@ import {
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
-import { JwtService } from '@nestjs/jwt';
 import { User, UserDocument } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
-import {
-  Collection,
-  CollectionDocument,
-} from '../collections/schemas/collection.schema';
-import { LoginUserDto } from './dto/login-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { Collection, CollectionDocument } from '../collections/schemas/collection.schema';
 import { Review, ReviewDocument } from '../reviews/schemas/review.schema';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
-    private jwtService: JwtService, // For token-based authentication
-    @InjectModel(Collection.name)
-    private collectionModel: Model<CollectionDocument>,
+    @InjectModel(Collection.name) private collectionModel: Model<CollectionDocument>,
     @InjectModel(Review.name) private reviewModel: Model<ReviewDocument>,
   ) {}
 
   /**
-   * Register a new user
+   * Create a new user account.
    */
-  async create(createUserDto: CreateUserDto): Promise<{ token: string }> {
+  async create(createUserDto: CreateUserDto): Promise<UserDocument> {
     const { username, email, password } = createUserDto;
-
-    // Check if email or username already exists
     const existingUser = await this.userModel.findOne({
       $or: [{ email }, { username }],
     });
     if (existingUser) {
       throw new BadRequestException('Email or username already taken');
     }
-
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user
     const newUser = new this.userModel({
       username,
       email,
       passwordHash: hashedPassword,
     });
-    await newUser.save();
-
-    // Generate JWT token
-    const token = this.jwtService.sign({ id: newUser._id });
-
-    return { token };
+    return newUser.save();
   }
 
   /**
-   * Authenticate user and return JWT token
+   * List all users.
    */
-  async login(loginUserDto: LoginUserDto): Promise<{ token: string }> {
-    const { email, password } = loginUserDto;
-
-    // Find user by email
-    const user = await this.userModel.findOne({ email });
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-
-    // Validate password
-    const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-    if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    // Generate JWT token
-    const token = this.jwtService.sign({ id: user._id });
-
-    return { token };
+  async findAll(): Promise<UserDocument[]> {
+    return this.userModel.find().exec();
   }
 
   /**
-   * Update user profile
+   * Find a user by ID.
+   */
+  async findById(id: string): Promise<UserDocument> {
+    const user = await this.userModel.findById(id).exec();
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
+  /**
+   * Find a user by email.
+   */
+  async findByEmail(email: string): Promise<UserDocument | null> {
+    return this.userModel.findOne({ email }).exec();
+  }
+
+  /**
+   * Search users by name (or part of name)
+   */
+  async searchByName(name: string): Promise<UserDocument[]> {
+    return this.userModel.find({
+      $or: [
+        { username: { $regex: name, $options: 'i' } },
+        { 'profile.displayName': { $regex: name, $options: 'i' } },
+      ],
+    }).exec();
+  }
+
+  /**
+   * Find users by minimum collection count.
+   */
+  async findByCollectionCount(min: number): Promise<UserDocument[]> {
+    const aggregationResult = await this.collectionModel.aggregate([
+      { $group: { _id: '$owner', count: { $sum: 1 } } },
+      { $match: { count: { $gte: min } } },
+    ]);
+    const userIds = aggregationResult.map((result) => result._id);
+    return this.userModel.find({ _id: { $in: userIds } }).exec();
+  }
+
+  /**
+   * Update user profile.
+   * Only the user themselves or an admin can update.
+   * Note: Schema nests profile data.
    */
   async updateProfile(
-    userId: string,
+    targetUserId: string,
     updateUserDto: UpdateUserDto,
+    requester: { id: string; role: string },
   ): Promise<UserDocument> {
-    if (!userId) {
-      throw new NotFoundException('User ID is missing');
+    if (targetUserId !== requester.id && requester.role !== 'admin') {
+      throw new UnauthorizedException('You are not allowed to update this profile');
     }
-  
+    // Construct update object using dot notation for nested profile fields
+    const updateData: any = {};
+    if (updateUserDto.displayName !== undefined) {
+      updateData['profile.displayName'] = updateUserDto.displayName;
+    }
+    if (updateUserDto.bio !== undefined) {
+      updateData['profile.bio'] = updateUserDto.bio;
+    }
+    if (updateUserDto.avatarUrl !== undefined) {
+      updateData['profile.avatarUrl'] = updateUserDto.avatarUrl;
+    }
+    // Optionally, update other fields if necessary
+
     const updatedUser = await this.userModel.findByIdAndUpdate(
-      userId,
-      { 
-        $set: {
-          'profile.displayName': updateUserDto.displayName,
-          'profile.bio': updateUserDto.bio,
-          'profile.avatarUrl': updateUserDto.avatarUrl,
-        }
-      },
+      targetUserId,
+      { $set: updateData },
       { new: true, runValidators: true },
     );
-  
     if (!updatedUser) {
       throw new NotFoundException('User not found');
     }
-  
     return updatedUser;
   }
-  
-  
+
 
   /**
-   * Change user password
+   * Change user password.
+   * Requires the user to provide the old password for verification.
    */
   async changePassword(
     userId: string,
     changePasswordDto: ChangePasswordDto,
   ): Promise<{ message: string }> {
     const { oldPassword, newPassword } = changePasswordDto;
-
-    // Find user
     const user = await this.userModel.findById(userId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
-
-    // Validate old password
-    const isOldPasswordValid = await bcrypt.compare(
-      oldPassword,
-      user.passwordHash,
-    );
-    if (!isOldPasswordValid) {
+    const isValid = await bcrypt.compare(oldPassword, user.passwordHash);
+    if (!isValid) {
       throw new UnauthorizedException('Incorrect old password');
     }
-
-    // Hash new password and update
     user.passwordHash = await bcrypt.hash(newPassword, 10);
     await user.save();
-
     return { message: 'Password updated successfully' };
   }
 
   /**
-   * Delete user
+   * Delete user account.
+   * Only the user themselves or an admin can delete the account.
+   * Password confirmation is required.
    */
   async deleteUser(
-    userId: string,
+    targetUserId: string,
     confirmPassword: string,
+    requester: { id: string; role: string },
   ): Promise<{ message: string }> {
-    // Find the user by id
-    const user = await this.userModel.findById(userId);
+    if (targetUserId !== requester.id && requester.role !== 'admin') {
+      throw new UnauthorizedException('You are not allowed to delete this account');
+    }
+    const user = await this.userModel.findById(targetUserId);
     if (!user) {
       throw new NotFoundException('User not found');
     }
-
-    // Verify the provided password
-    const isPasswordValid = await bcrypt.compare(
-      confirmPassword,
-      user.passwordHash,
-    );
-    if (!isPasswordValid) {
+    const isValid = await bcrypt.compare(confirmPassword, user.passwordHash);
+    if (!isValid) {
       throw new UnauthorizedException('Password confirmation failed');
     }
-
-    // Cascade delete: remove all collections owned by the user
-    await this.collectionModel.deleteMany({ owner: userId });
-    // Remove all reviews made by the user
-    await this.reviewModel.deleteMany({ userId: userId });
-
-    // Finally, delete the user
-    await this.userModel.findByIdAndDelete(userId);
-
-    return {
-      message:
-        'User and all associated collections and reviews have been deleted',
-    };
-  }
-
-  /**
-   * Find user by email
-   */
-  async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email }).exec();
+    // Cascade delete associated collections and reviews
+    await this.collectionModel.deleteMany({ owner: targetUserId });
+    await this.reviewModel.deleteMany({ userId: targetUserId });
+    await this.userModel.findByIdAndDelete(targetUserId);
+    return { message: 'User and all associated collections and reviews have been deleted' };
   }
 }
