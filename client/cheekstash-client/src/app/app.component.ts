@@ -4,10 +4,10 @@ import { SharedModule } from './shared/shared.module';
 
 @Component({
   selector: 'app-root',
-  standalone: true,  // mark it as standalone if not already done
+  standalone: true, 
   imports: [RouterOutlet, SharedModule],
   templateUrl: './app.component.html',
-  styleUrls: ['./app.component.css']  // note: should be plural 'styleUrls'
+  styleUrls: ['./app.component.css']
 })
 export class AppComponent {
   title = 'cheekstash-client';

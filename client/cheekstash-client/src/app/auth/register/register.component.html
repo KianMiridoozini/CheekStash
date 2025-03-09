@@ -1,1 +1,11 @@
 <p>register works!</p>
+<form (ngSubmit)="onSubmit()">
+    <label>Username:</label>
+    <input type="text" [(ngModel)]="userData.username" name="username" required />
+    <label>Email:</label>
+    <input type="email" [(ngModel)]="userData.email" name="email" required />
+    <label>Password:</label>
+    <input type="password" [(ngModel)]="userData.password" name="password" required />
+    <button type="submit">Register</button>
+  </form>
+  

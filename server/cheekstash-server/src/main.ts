@@ -9,6 +9,16 @@ async function bootstrap() {
   // Global prefix for all routes
   app.setGlobalPrefix('api');
 
+  // CORS
+  app.enableCors(
+    {
+      origin: '*',
+      methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+      allowedHeaders: ['auth-token', 'Origin', 'X-Requested-With', 'Content-Type', 'Accept'], // Allow specific headers
+      credentials: true,
+    },
+  );
+
   // Global validation pipes
   app.useGlobalPipes(
     new ValidationPipe({

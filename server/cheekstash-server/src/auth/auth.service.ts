@@ -2,7 +2,7 @@ import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/co
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
-// import { LoginUserDto } from '../users/dto/login-user.dto';
+import { LoginUserDto } from '../users/dto/login-user.dto';
 import { ChangePasswordDto } from '../users/dto/change-password.dto';
 import { UserDocument } from '../users/schemas/user.schema';
 
@@ -31,10 +31,11 @@ export class AuthService {
   /**
    * Login: Accepts a user document and returns a JWT token.
    */
-  async login(user: UserDocument): Promise<{ token: string }> {
+  async login(user: UserDocument): Promise<{ token: string; username: string }> {
     const token = this.jwtService.sign({ id: user._id });
-    return { token };
+    return { token, username: user.username };
   }
+  
 
   async changePassword(
     userId: string,
