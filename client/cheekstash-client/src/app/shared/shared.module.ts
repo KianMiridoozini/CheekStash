@@ -2,16 +2,20 @@ import { NgModule } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { NavbarComponent } from './navbar/navbar.component';
 import { FooterComponent } from './footer/footer.component';
+import { FormsModule } from '@angular/forms';
 
 @NgModule({
   imports: [
     CommonModule,
-    // Import standalone components; do not declare them
+    FormsModule,
+
     NavbarComponent,
     FooterComponent,
   ],
   exports: [
-    // Export them so other modules can use them
+    CommonModule,
+    FormsModule,
+    
     NavbarComponent,
     FooterComponent,
   ]

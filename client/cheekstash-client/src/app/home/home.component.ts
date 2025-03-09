@@ -1,11 +1,26 @@
-import { Component } from '@angular/core';
+// home.component.ts
+import { Component, OnInit } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
+import { CommonModule } from '@angular/common';
 
 @Component({
   selector: 'app-home',
-  imports: [],
+  standalone: true,
+  imports: [
+    CommonModule
+  ],
   templateUrl: './home.component.html',
-  styleUrl: './home.component.css'
+  styleUrls: ['./home.component.scss']
 })
-export class HomeComponent {
+export class HomeComponent implements OnInit {
+  welcomeMessage = '';
 
+  ngOnInit(): void {
+    const username = localStorage.getItem('username');
+    if (username) {
+      this.welcomeMessage = `Welcome, ${username}!`;
+    } else {
+      this.welcomeMessage = 'Welcome!';
+    }
+  }
 }
