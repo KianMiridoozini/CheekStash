@@ -46,14 +46,14 @@ export class UsersService {
    * List all users.
    */
   async findAll(): Promise<UserDocument[]> {
-    return this.userModel.find().exec();
+    return this.userModel.find().select('-passwordHash').exec();
   }
 
   /**
    * Find a user by ID.
    */
   async findById(id: string): Promise<UserDocument> {
-    const user = await this.userModel.findById(id).exec();
+    const user = await this.userModel.findById(id).select('-passwordHash').exec();
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
@@ -62,19 +62,32 @@ export class UsersService {
    * Find a user by email.
    */
   async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email }).exec();
+    return this.userModel.findOne({ email }).select('-passwordHash').exec();
   }
 
   /**
    * Search users by name (or part of name)
    */
   async searchByName(name: string): Promise<UserDocument[]> {
-    return this.userModel.find({
-      $or: [
-        { username: { $regex: name, $options: 'i' } },
-        { 'profile.displayName': { $regex: name, $options: 'i' } },
-      ],
-    }).exec();
+    try {
+      const users = await this.userModel.find({
+        $or: [
+          { username: { $regex: name, $options: 'i' } },
+          { 'profile.displayName': { $regex: name, $options: 'i' } },
+        ],
+      }).select('-passwordHash').exec();
+  
+      if (!users || users.length === 0) {
+        throw new NotFoundException('No users found with the given name');
+      }
+  
+      return users;
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('An error occurred while searching for users');
+    }
   }
 
   /**
@@ -86,7 +99,7 @@ export class UsersService {
       { $match: { count: { $gte: min } } },
     ]);
     const userIds = aggregationResult.map((result) => result._id);
-    return this.userModel.find({ _id: { $in: userIds } }).exec();
+    return this.userModel.find({ _id: { $in: userIds } }).select('-passwordHash').exec();
   }
 
   /**

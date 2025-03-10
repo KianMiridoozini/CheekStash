@@ -8,7 +8,7 @@ import {
   UseGuards,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginUserDto } from '../users/dto/login-user.dto';
 import { ChangePasswordDto } from '../users/dto/change-password.dto';
@@ -23,6 +23,7 @@ export class AuthController {
 
   @Post('login')
   @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'User authenticated successfully' })
   @ApiOperation({ summary: 'Authenticate user and return JWT' })
   async login(@Body() loginUserDto: LoginUserDto) {
     return this.authService
@@ -32,6 +33,8 @@ export class AuthController {
 
   @Put('password')
   @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Password changed successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Change user password' })
@@ -41,6 +44,8 @@ export class AuthController {
 
   @Delete('account')
   @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Account deleted successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete user account along with associated collections and reviews' })

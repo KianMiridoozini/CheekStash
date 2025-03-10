@@ -1,9 +1,24 @@
-import { Controller, Post, Body, Get, Param, Put, Delete, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Body,
+  Get,
+  Param,
+  Put,
+  Delete,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { CollectionsService } from './collections.service';
 import { CollectionDto } from './dto/collection.dto';
 import { UpdateCollectionDto } from './dto/update-collection.dto';
 import { HttpCode } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @ApiTags('collections')
@@ -16,6 +31,8 @@ export class CollectionsController {
    */
   @Post()
   @HttpCode(201)
+  @ApiResponse({ status: 201, description: 'Collection created successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Create a new collection' })
@@ -34,10 +51,12 @@ export class CollectionsController {
   }
 
   /**
-   * Get a collection by ID 
+   * Get a collection by ID
    */
   @Get(':id')
   @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Collection found' })
+  @ApiResponse({ status: 404, description: 'Collection not found' })
   @ApiOperation({ summary: 'Get a collection by ID' })
   async findOne(@Param('id') id: string) {
     return this.collectionsService.getCollectionById(id);
@@ -48,22 +67,26 @@ export class CollectionsController {
    */
   @Put(':id')
   @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Collection updated successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update a collection' })
   async update(
-    @Param('id') id: string, 
-    @Body() updateDto: UpdateCollectionDto, 
-    @Req() req
+    @Param('id') id: string,
+    @Body() updateDto: UpdateCollectionDto,
+    @Req() req,
   ) {
     return this.collectionsService.updateCollection(id, updateDto, req.user.id);
   }
-  
+
   /**
    * Delete a collection (Protected: Only the collection owner)
    */
   @Delete(':id')
   @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'Collection deleted successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete a collection' })
