@@ -4,7 +4,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { UsersModule } from './users/users.module';
-import { CollectionsModule } from './collections/collections.module';
+import { CheeksModule } from './cheeks/cheeks.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { AuthModule } from './auth/auth.module';
 
@@ -14,7 +14,7 @@ import { AuthModule } from './auth/auth.module';
     MongooseModule.forRoot(process.env.MONGO_URI as string),
     UsersModule, 
     AuthModule, 
-    CollectionsModule, 
+    CheeksModule, 
     ReviewsModule, 
   ],
   controllers: [AppController],

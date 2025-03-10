@@ -52,16 +52,16 @@ export class UsersController {
   }
 
   /**
-   * Find users by minimum collection count.
+   * Find users by minimum cheeks count.
    */
-  @Get('by-collections')
+  @Get('by-cheek-count')
   @HttpCode(200)
-  @ApiResponse({ status: 200, description: 'List of users with minimum collection count' })
+  @ApiResponse({ status: 200, description: 'List of users with minimum cheek count' })
   @ApiResponse({ status: 404, description: 'No users found' })
-  @ApiOperation({ summary: 'Find users by minimum collection count' })
-  async findUsersByCollectionCount(@Query('min') min: string) {
+  @ApiOperation({ summary: 'Find users by minimum cheek count' })
+  async findUsersByCheekCount(@Query('min') min: string) {
     const minCount = parseInt(min, 10);
-    return this.usersService.findByCollectionCount(minCount);
+    return this.usersService.findByCheekCount(minCount);
   }
 
   /**

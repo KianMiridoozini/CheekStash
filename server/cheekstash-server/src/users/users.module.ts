@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { User, UserSchema } from './schemas/user.schema';
-import { Collection, CollectionSchema } from '../collections/schemas/collection.schema';
+import { Cheeks, CheeksSchema } from '../cheeks/schemas/cheeks.schema';
 import { Review, ReviewSchema } from '../reviews/schemas/review.schema';
 import { UsersService } from './users.service';
 import { UsersController } from './users.controller';
@@ -12,7 +12,7 @@ import { JwtModule } from '@nestjs/jwt';
   imports: [
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
-      { name: Collection.name, schema: CollectionSchema },
+      { name: Cheeks.name, schema: CheeksSchema },
       { name: Review.name, schema: ReviewSchema },
       
     ]),

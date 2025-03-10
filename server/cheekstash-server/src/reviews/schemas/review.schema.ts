@@ -5,8 +5,8 @@ export type ReviewDocument = Review & Document;
 
 @Schema({ timestamps: true })
 export class Review {
-  @Prop({ required: true, type: Types.ObjectId, ref: 'Collection' })
-  collectionId: Types.ObjectId;
+  @Prop({ required: true, type: Types.ObjectId, ref: 'Cheeks' })
+  cheekId: Types.ObjectId;
 
   @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
   userId: Types.ObjectId;
