@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, InternalServerErrorException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Review, ReviewDocument } from './schemas/review.schema';
@@ -12,13 +12,24 @@ export class ReviewsService {
   /**
    * Create a new review
    */
-  async createReview(createReviewDto: CreateReviewDto, userId: string, username: string): Promise<Review> {
-    const newReview = new this.reviewModel({
-      ...createReviewDto,
-      userId,
-      username,
-    });
-    return newReview.save();
+  async createReview(
+    createReviewDto: CreateReviewDto,
+    userId: string,
+    username: string
+  ): Promise<Review> {
+    try {
+      const newReview = new this.reviewModel({
+        ...createReviewDto,
+        userId,
+        username,
+      });
+      return await newReview.save();
+    } catch (error) {
+      // Log the error if needed, then rethrow a generic internal server error.
+      throw new InternalServerErrorException(
+        'Failed to create review: ' + (error.message || 'Unknown error')
+      );
+    }
   }
 
   /**
