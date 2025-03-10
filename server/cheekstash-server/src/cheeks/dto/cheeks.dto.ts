@@ -3,24 +3,24 @@ import { IsString, IsNumber, ArrayMinSize , ValidateNested , IsBoolean, IsArray,
 import { Type } from 'class-transformer';
 import { LinkDto } from './link.dto';
 
-export class CollectionDto {
+export class CheeksDto {
   @ApiProperty({
     example: 'Best AI Tools',
-    description: 'Title of the collection',
+    description: 'Title of the Cheeks',
   })
   @IsString()
   title: string;
 
   @ApiProperty({
     example: 'A curated list of useful AI tools for startups',
-    description: 'Collection description',
+    description: 'Cheeks description',
   })
   @IsString()
   description: string;
 
   @ApiProperty({
     example: ['AI', 'Machine Learning', 'Productivity'],
-    description: 'Tags for the collection',
+    description: 'Tags for the Cheeks',
   })
   @IsArray()
   @IsString({ each: true })
@@ -28,7 +28,7 @@ export class CollectionDto {
 
   @ApiProperty({
     example: 'Tech',
-    description: 'Category of the collection',
+    description: 'Category of the Cheeks',
   })
   @IsString()
   category: string;
@@ -59,7 +59,7 @@ export class CollectionDto {
     ],
   })
   @IsArray()
-  @ArrayMinSize(2, { message: 'A collection must contain at least 2 links.' })
+  @ArrayMinSize(2, { message: 'A Cheeks must contain at least 2 links.' })
   @ValidateNested({ each: true })
   @Type(() => LinkDto)
   links: LinkDto[];

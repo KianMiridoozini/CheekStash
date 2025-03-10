@@ -48,7 +48,7 @@ export class AuthController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Delete user account along with associated collections and reviews' })
+  @ApiOperation({ summary: 'Delete user account along with associated cheeks and reviews' })
   async deleteAccount(@Req() req, @Body() confirmPasswordDto: ConfirmPasswordDto) {
     if (!req.user || !req.user.id) {
       throw new UnauthorizedException('User not authenticated');

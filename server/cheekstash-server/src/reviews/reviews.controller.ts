@@ -20,20 +20,20 @@ export class ReviewsController {
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth() // Adds "Authorize" button in Swagger
-  @ApiOperation({ summary: 'Submit a review for a collection' })
+  @ApiOperation({ summary: 'Submit a review for a cheek' })
   async createReview(@Body() createReviewDto: CreateReviewDto, @Req() req) {
     return this.reviewsService.createReview(createReviewDto, req.user.id, req.user.username);
   }
 
   /**
-   * Get all reviews for a collection
+   * Get all reviews for a cheek
    */
-  @Get(':collectionId')
+  @Get(':cheekId')
   @HttpCode(200)
-  @ApiResponse({ status: 200, description: 'List of reviews for the collection' })
-  @ApiOperation({ summary: 'Get all reviews for a specific collection' })
-  async getReviews(@Param('collectionId') collectionId: string) {
-    return this.reviewsService.getReviewsForCollection(collectionId);
+  @ApiResponse({ status: 200, description: 'List of reviews for the cheek' })
+  @ApiOperation({ summary: 'Get all reviews for a specific cheek' })
+  async getReviews(@Param('cheekId') cheekId: string) {
+    return this.reviewsService.getReviewsForCheeks(cheekId);
   }
 
   /**
