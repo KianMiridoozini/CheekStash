@@ -11,14 +11,14 @@ import { User, UserDocument } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { Collection, CollectionDocument } from '../collections/schemas/collection.schema';
+import { Cheeks, CheeksDocument } from '../cheeks/schemas/cheeks.schema';
 import { Review, ReviewDocument } from '../reviews/schemas/review.schema';
 
 @Injectable()
 export class UsersService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
-    @InjectModel(Collection.name) private collectionModel: Model<CollectionDocument>,
+    @InjectModel(Cheeks.name) private cheekModel: Model<CheeksDocument>,
     @InjectModel(Review.name) private reviewModel: Model<ReviewDocument>,
   ) {}
 
@@ -62,7 +62,7 @@ export class UsersService {
    * Find a user by email.
    */
   async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email }).select('-passwordHash').exec();
+    return this.userModel.findOne({ email }).exec();
   }
 
   /**
@@ -91,13 +91,16 @@ export class UsersService {
   }
 
   /**
-   * Find users by minimum collection count.
+   * Find users by minimum cheek count.
    */
-  async findByCollectionCount(min: number): Promise<UserDocument[]> {
-    const aggregationResult = await this.collectionModel.aggregate([
+  async findByCheekCount(min: number): Promise<UserDocument[]> {
+    const aggregationResult = await this.cheekModel.aggregate([
       { $group: { _id: '$owner', count: { $sum: 1 } } },
       { $match: { count: { $gte: min } } },
     ]);
+    if (aggregationResult.length === 0) {
+      throw new NotFoundException('No users found with the given minimum cheek count');
+    }
     const userIds = aggregationResult.map((result) => result._id);
     return this.userModel.find({ _id: { $in: userIds } }).select('-passwordHash').exec();
   }
@@ -183,10 +186,10 @@ export class UsersService {
     if (!isValid) {
       throw new UnauthorizedException('Password confirmation failed');
     }
-    // Cascade delete associated collections and reviews
-    await this.collectionModel.deleteMany({ owner: targetUserId });
+    // Cascade delete associated cheeks and reviews
+    await this.cheekModel.deleteMany({ owner: targetUserId });
     await this.reviewModel.deleteMany({ userId: targetUserId });
     await this.userModel.findByIdAndDelete(targetUserId);
-    return { message: 'User and all associated collections and reviews have been deleted' };
+    return { message: 'User and all associated cheeks and reviews have been deleted' };
   }
 }

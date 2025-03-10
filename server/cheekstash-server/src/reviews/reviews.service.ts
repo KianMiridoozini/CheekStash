@@ -33,10 +33,10 @@ export class ReviewsService {
   }
 
   /**
-   * Get all reviews for a collection
+   * Get all reviews for a cheek
    */
-  async getReviewsForCollection(collectionId: string): Promise<Review[]> {
-    return this.reviewModel.find({ collectionId }).exec();
+  async getReviewsForCheeks(cheekId: string): Promise<Review[]> {
+    return this.reviewModel.find({ cheekId }).exec();
   }
 
   /**
