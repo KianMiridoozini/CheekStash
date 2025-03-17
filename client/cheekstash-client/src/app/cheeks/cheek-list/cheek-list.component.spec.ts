@@ -1,18 +1,18 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
-import { CollectionListComponent } from './collection-list.component';
+import { CheekListComponent } from './cheek-list.component';
 
-describe('CollectionListComponent', () => {
-  let component: CollectionListComponent;
-  let fixture: ComponentFixture<CollectionListComponent>;
+describe('CheekListComponent', () => {
+  let component: CheekListComponent;
+  let fixture: ComponentFixture<CheekListComponent>;
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [CollectionListComponent]
+      imports: [CheekListComponent]
     })
     .compileComponents();
 
-    fixture = TestBed.createComponent(CollectionListComponent);
+    fixture = TestBed.createComponent(CheekListComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
