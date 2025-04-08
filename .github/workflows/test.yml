@@ -1,53 +1,80 @@
-name: Server Tests
+name: CI/CD Pipeline
 
 on:
   push:
     branches:
-      - Develop
+      - Develop # Trigger on pushes to Develop
   pull_request:
     branches:
-      - Develop
+      - Develop # Trigger on PRs targeting Develop
 
 jobs:
-  tests:
+  # Single test job, runs on pushes and PRs to Develop
+  test:
+    name: Test # Renamed back to 'test' for simplicity
     runs-on: ubuntu-latest
     env:
+      # Secrets needed for the test database service
       MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
       MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
+      # DATABASE_URI for the application to connect to the localhost port mapping
       DATABASE_URI: mongodb://${{ secrets.MONGO_INITDB_ROOT_USERNAME }}:${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}@localhost:27017/my_local_app_db_test?authSource=admin
 
     services:
       mongo:
         image: mongo:latest
-        ports:
+        ports: # Port mapping is used by DATABASE_URI's localhost
           - 27017:27017
         env:
           MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_INITDB_ROOT_USERNAME }}
           MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_INITDB_ROOT_PASSWORD }}
-        options: >-
+        options:
+          >- # Health check uses localhost as it runs inside the container
           --health-cmd "mongosh \"mongodb://$MONGO_INITDB_ROOT_USERNAME:$MONGO_INITDB_ROOT_PASSWORD@localhost:27017/admin?authSource=admin\" --eval \"db.adminCommand('ping')\" --quiet"
-          --health-interval 20s 
-          --health-timeout 10s 
-          --health-retries 10
+          --health-interval 20s
+          --health-timeout 10s
+          --health-retries: 10
           --health-start-period 30s
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4 # Use v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4 # Use v4
         with:
-          node-version: "22"
+          node-version: "22" # Ensure this matches your project needs
 
       - name: Install dependencies
         run: npm install
-        working-directory: server/cheekstash-server
+        working-directory: server/cheekstash-server # Specify your server directory
 
       - name: Run unit tests
         run: npm run test
         working-directory: server/cheekstash-server
 
       - name: Run integration tests
+        # Ensure --testTimeout=30000 is set in package.json or jest config
         run: npm run test:int
         working-directory: server/cheekstash-server
+
+  # Job to deploy to Render, runs only after tests on Develop pushes succeed
+  deploy:
+    # Only run this job for Develop branch push events AND if test job succeeded
+    if: github.ref == 'refs/heads/Develop' && github.event_name == 'push'
+    name: Deploy to Render
+    needs: [test] # Depends on the 'test' job
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render Deploy Hook
+        uses: johnbeynon/render-deploy-action@v0.0.8
+        with:
+          # Get Service ID from Render > Service > Settings > Deploy Hook URL
+          service-id: ${{ secrets.RENDER_SERVICE_ID }} # Use a clear secret name
+
+          # Get API Key from Render > Account Settings > API Keys
+          api-key: ${{ secrets.RENDER_API_KEY }}
+
+          # Optional: Wait for deployment to complete (defaults to false)
+          wait-for-deploy: true
