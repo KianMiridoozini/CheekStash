@@ -7,6 +7,7 @@ import { UsersModule } from './users/users.module';
 import { CheeksModule } from './cheeks/cheeks.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { AuthModule } from './auth/auth.module';
+import { CronModule } from './devTools/cron.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AuthModule } from './auth/auth.module';
     AuthModule, 
     CheeksModule, 
     ReviewsModule, 
+    CronModule
   ],
   controllers: [AppController],
   providers: [AppService],
