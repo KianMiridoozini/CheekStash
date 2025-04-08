@@ -4,10 +4,10 @@ on:
   # Run the workflow whenever there's a push or pull request targeting the develop branch.
   push:
     branches:
-      - develop
+      - Develop
   pull_request:
     branches:
-      - develop
+      - Develop
 
 jobs:
   tests:
@@ -61,4 +61,3 @@ jobs:
       - name: Run integration tests
         run: npm run test:int
         working-directory: server/cheekstash-server
-        
