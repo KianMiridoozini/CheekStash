@@ -61,3 +61,4 @@ jobs:
       - name: Run integration tests
         run: npm run test:int
         working-directory: server/cheekstash-server
+        
