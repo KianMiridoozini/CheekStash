@@ -48,6 +48,24 @@ jobs:
         run: npm run test
         working-directory: server/cheekstash-server
 
+      - name: Debug MongoDB Service Connectivity
+        run: |
+          echo "--- Waiting 5 seconds for network stabilization ---"
+          sleep 5
+          echo "--- /etc/hosts ---"
+          cat /etc/hosts
+          echo "--- /etc/resolv.conf ---"
+          cat /etc/resolv.conf
+          echo "--- Attempting DNS lookup for 'mongo' using getent ---"
+          getent hosts mongo || echo "getent failed to resolve mongo"
+          echo "--- Attempting DNS lookup for 'mongo' using nslookup (if available) ---"
+          nslookup mongo || echo "nslookup failed or is not installed"
+          echo "--- Attempting connection to mongo:27017 with netcat ---"
+          sudo apt-get update && sudo apt-get install -y netcat-openbsd
+          nc -zv -w 5 mongo 27017 || echo "Netcat connection failed"
+          echo "--- Checking environment variable again ---"
+          echo "DATABASE_URI=${DATABASE_URI}"
+
       - name: Run integration tests
         run: npm run test:int
         working-directory: server/cheekstash-server
