@@ -6,7 +6,7 @@ import { CheeksService } from './cheeks.service';
 import { Cheeks, CheeksDocument } from './schemas/cheeks.schema'; // <-- Import Schema Class
 import { CheeksDto } from './dto/cheeks.dto';
 import { NotFoundException, ForbiddenException } from '@nestjs/common';
-import { LinkDto } from './dto/link.dto'; // <-- Import LinkDto if needed for CheeksDto
+// import { LinkDto } from './dto/link.dto'; 
 
 // --- Mocking Setup (Consistent with users/auth) ---
 const mockStaticMethods = {
@@ -24,7 +24,7 @@ const mockDocument = (dto: Partial<CheeksDto> = {}, ownerId?: string) => ({
   tags: dto.tags || [],
   isPublic: dto.isPublic !== undefined ? dto.isPublic : true,
   links: dto.links || [],
-  _id: (dto as any)._id || new Types.ObjectId(), // Allow passing _id for mocking find results
+  _id: (dto as any)._id || new Types.ObjectId(), 
   owner: new Types.ObjectId(ownerId || new Types.ObjectId().toHexString()),
   save: jest.fn().mockResolvedValue({
     title: dto.title || 'Default Title',
@@ -36,9 +36,12 @@ const mockDocument = (dto: Partial<CheeksDto> = {}, ownerId?: string) => ({
     _id: (dto as any)._id || new Types.ObjectId(),
     owner: new Types.ObjectId(ownerId || new Types.ObjectId().toHexString()),
   }),
-  toString: jest.fn().mockReturnValue(JSON.stringify({ ...dto, _id: (dto as any)._id, owner: ownerId })),
+  toString: jest
+    .fn()
+    .mockReturnValue(
+      JSON.stringify({ ...dto, _id: (dto as any)._id, owner: ownerId }),
+    ),
 });
-
 
 const mockQuery = (resolveValue: any = null) => ({
   exec: jest.fn().mockResolvedValue(resolveValue),
@@ -53,7 +56,6 @@ const createMockCheeksModel = () => {
 };
 // --- End Mocking Setup ---
 
-
 describe('CheeksService', () => {
   let service: CheeksService;
   let cheeksModel: jest.Mock & typeof mockStaticMethods;
@@ -67,9 +69,8 @@ describe('CheeksService', () => {
       providers: [
         CheeksService,
         {
-          // --- FIX: Use getModelToken(Cheeks.name) ---
           provide: getModelToken(Cheeks.name),
-          useValue: cheeksModel, // Use the mock model constructor/function
+          useValue: cheeksModel, 
         },
       ],
     }).compile();
@@ -84,76 +85,86 @@ describe('CheeksService', () => {
   // --- Test createCheeks ---
   describe('createCheeks', () => {
     const ownerId = new Types.ObjectId().toHexString();
-    // --- FIX: Use 'title' and match CheeksDto structure ---
     const cheeksDto: CheeksDto = {
-        title: 'Test Cheek',
-        description: 'Desc',
-        category: 'Tech',
-        tags: ['testing', 'ai'],
-        isPublic: true,
-        links: [{ title: 't', url: 'u', description: 'd', order: 0 }, { title: 't2', url: 'u2', description: 'd2', order: 1 }] // Ensure min size
+      title: 'Test Cheek',
+      description: 'Desc',
+      category: 'Tech',
+      tags: ['testing', 'ai'],
+      isPublic: true,
+      links: [
+        { title: 't', url: 'u', description: 'd', order: 0 },
+        { title: 't2', url: 'u2', description: 'd2', order: 1 },
+      ], 
     };
     const savedCheekDoc = mockDocument({ ...cheeksDto }, ownerId);
 
     it('should create and save a new cheek', async () => {
-        const mockSave = jest.fn().mockResolvedValue(savedCheekDoc);
-        cheeksModel.mockImplementationOnce(() => ({
-            ...cheeksDto,
-            owner: ownerId,
-            save: mockSave,
-        }));
+      const mockSave = jest.fn().mockResolvedValue(savedCheekDoc);
+      cheeksModel.mockImplementationOnce(() => ({
+        ...cheeksDto,
+        owner: ownerId,
+        save: mockSave,
+      }));
 
-        const result = await service.createCheeks(cheeksDto, ownerId);
+      const result = await service.createCheeks(cheeksDto, ownerId);
 
-        expect(cheeksModel).toHaveBeenCalledWith({ ...cheeksDto, owner: ownerId });
-        expect(mockSave).toHaveBeenCalled();
-        expect(result).toEqual(expect.objectContaining({
-            title: cheeksDto.title, // Check title
-            owner: new Types.ObjectId(ownerId)
-        }));
+      expect(cheeksModel).toHaveBeenCalledWith({
+        ...cheeksDto,
+        owner: ownerId,
+      });
+      expect(mockSave).toHaveBeenCalled();
+      expect(result).toEqual(
+        expect.objectContaining({
+          title: cheeksDto.title, 
+          owner: new Types.ObjectId(ownerId),
+        }),
+      );
     });
   });
 
   // --- Test getCheeks ---
   describe('getCheeks', () => {
     it('should return an array of cheeks', async () => {
-        // --- FIX: Use title in mock data ---
-        const cheeksData = [mockDocument({ title: 'Cheek 1' }), mockDocument({ title: 'Cheek 2' })];
-        const mockFindQuery = mockQuery(cheeksData);
-        cheeksModel.find.mockReturnValueOnce(mockFindQuery as any);
+      const cheeksData = [
+        mockDocument({ title: 'Cheek 1' }),
+        mockDocument({ title: 'Cheek 2' }),
+      ];
+      const mockFindQuery = mockQuery(cheeksData);
+      cheeksModel.find.mockReturnValueOnce(mockFindQuery as any);
 
-        const result = await service.getCheeks();
+      const result = await service.getCheeks();
 
-        expect(cheeksModel.find).toHaveBeenCalled();
-        expect(mockFindQuery.exec).toHaveBeenCalled();
-        expect(result).toEqual(cheeksData);
+      expect(cheeksModel.find).toHaveBeenCalled();
+      expect(mockFindQuery.exec).toHaveBeenCalled();
+      expect(result).toEqual(cheeksData);
     });
   });
 
   // --- Test getCheeksById ---
   describe('getCheeksById', () => {
     const cheekId = new Types.ObjectId().toHexString();
-     // --- FIX: Use title in mock data ---
     const cheekData = mockDocument({ title: 'Found Cheek' });
 
     it('should return a cheek if found', async () => {
-        const mockFindByIdQuery = mockQuery(cheekData);
-        cheeksModel.findById.mockReturnValueOnce(mockFindByIdQuery as any);
+      const mockFindByIdQuery = mockQuery(cheekData);
+      cheeksModel.findById.mockReturnValueOnce(mockFindByIdQuery as any);
 
-        const result = await service.getCheeksById(cheekId);
+      const result = await service.getCheeksById(cheekId);
 
-        expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
-        expect(mockFindByIdQuery.exec).toHaveBeenCalled();
-        expect(result).toEqual(cheekData);
+      expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
+      expect(mockFindByIdQuery.exec).toHaveBeenCalled();
+      expect(result).toEqual(cheekData);
     });
 
     it('should throw NotFoundException if cheek not found', async () => {
-        const mockFindByIdQuery = mockQuery(null);
-        cheeksModel.findById.mockReturnValueOnce(mockFindByIdQuery as any);
+      const mockFindByIdQuery = mockQuery(null);
+      cheeksModel.findById.mockReturnValueOnce(mockFindByIdQuery as any);
 
-        await expect(service.getCheeksById(cheekId)).rejects.toThrow(NotFoundException);
-        expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
-        expect(mockFindByIdQuery.exec).toHaveBeenCalled();
+      await expect(service.getCheeksById(cheekId)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
+      expect(mockFindByIdQuery.exec).toHaveBeenCalled();
     });
   });
 
@@ -163,91 +174,102 @@ describe('CheeksService', () => {
     const ownerId = new Types.ObjectId().toHexString();
     const nonOwnerId = new Types.ObjectId().toHexString();
     const updateDto: Partial<CheeksDto> = { description: 'Updated Desc' };
-     // --- FIX: Use title in mock data ---
-    const originalCheekDoc = mockDocument({ title: 'Original', description: 'Orig Desc' }, ownerId);
-    const updatedCheekDoc = mockDocument({ title: 'Original', description: 'Updated Desc' }, ownerId);
+    const originalCheekDoc = mockDocument(
+      { title: 'Original', description: 'Orig Desc' },
+      ownerId,
+    );
+    const updatedCheekDoc = mockDocument(
+      { title: 'Original', description: 'Updated Desc' },
+      ownerId,
+    );
 
     it('should update the cheek if user is the owner', async () => {
-        cheeksModel.findById.mockResolvedValueOnce(originalCheekDoc);
-        cheeksModel.findOneAndUpdate.mockResolvedValueOnce(updatedCheekDoc);
+      cheeksModel.findById.mockResolvedValueOnce(originalCheekDoc);
+      cheeksModel.findOneAndUpdate.mockResolvedValueOnce(updatedCheekDoc);
 
-        const result = await service.updateCheeks(cheekId, updateDto, ownerId);
+      const result = await service.updateCheeks(cheekId, updateDto, ownerId);
 
-        expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
-        expect(cheeksModel.findOneAndUpdate).toHaveBeenCalledWith(
-            { _id: cheekId, owner: ownerId },
-            updateDto,
-            { new: true, runValidators: true }
-        );
-        expect(result).toEqual(updatedCheekDoc);
+      expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
+      expect(cheeksModel.findOneAndUpdate).toHaveBeenCalledWith(
+        { _id: cheekId, owner: ownerId },
+        updateDto,
+        { new: true, runValidators: true },
+      );
+      expect(result).toEqual(updatedCheekDoc);
     });
 
-    // ... (other update tests remain the same)
     it('should throw NotFoundException if cheek to update is not found (findById)', async () => {
-        // Arrange
-        cheeksModel.findById.mockResolvedValueOnce(null);
+      // Arrange
+      cheeksModel.findById.mockResolvedValueOnce(null);
 
-        // Act & Assert
-        await expect(service.updateCheeks(cheekId, updateDto, ownerId)).rejects.toThrow(NotFoundException);
-        expect(cheeksModel.findOneAndUpdate).not.toHaveBeenCalled();
+      // Act & Assert
+      await expect(
+        service.updateCheeks(cheekId, updateDto, ownerId),
+      ).rejects.toThrow(NotFoundException);
+      expect(cheeksModel.findOneAndUpdate).not.toHaveBeenCalled();
     });
 
     it('should throw ForbiddenException if user is not the owner', async () => {
-        // Arrange
-        cheeksModel.findById.mockResolvedValueOnce(originalCheekDoc); // Found, but owner doesn't match
+      // Arrange
+      cheeksModel.findById.mockResolvedValueOnce(originalCheekDoc); 
 
-        // Act & Assert
-        await expect(service.updateCheeks(cheekId, updateDto, nonOwnerId)).rejects.toThrow(ForbiddenException);
-        expect(cheeksModel.findOneAndUpdate).not.toHaveBeenCalled();
+      // Act & Assert
+      await expect(
+        service.updateCheeks(cheekId, updateDto, nonOwnerId),
+      ).rejects.toThrow(ForbiddenException);
+      expect(cheeksModel.findOneAndUpdate).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundException if findOneAndUpdate returns null (e.g., concurrent delete)', async () => {
-        // Arrange
-        cheeksModel.findById.mockResolvedValueOnce(originalCheekDoc); // Found, owner matches
-        cheeksModel.findOneAndUpdate.mockResolvedValueOnce(null); // But update fails
+      // Arrange
+      cheeksModel.findById.mockResolvedValueOnce(originalCheekDoc);
+      cheeksModel.findOneAndUpdate.mockResolvedValueOnce(null); 
 
-        // Act & Assert
-        await expect(service.updateCheeks(cheekId, updateDto, ownerId)).rejects.toThrow(NotFoundException);
+      // Act & Assert
+      await expect(
+        service.updateCheeks(cheekId, updateDto, ownerId),
+      ).rejects.toThrow(NotFoundException);
     });
   });
-
 
   // --- Test deleteCheeks ---
   describe('deleteCheeks', () => {
     const cheekId = new Types.ObjectId().toHexString();
     const ownerId = new Types.ObjectId().toHexString();
     const nonOwnerId = new Types.ObjectId().toHexString();
-     // --- FIX: Use title in mock data ---
     const cheekDoc = mockDocument({ title: 'To Delete' }, ownerId);
 
     it('should delete the cheek if user is the owner', async () => {
-        cheeksModel.findById.mockResolvedValueOnce(cheekDoc);
-        cheeksModel.findByIdAndDelete.mockResolvedValueOnce(cheekDoc);
+      cheeksModel.findById.mockResolvedValueOnce(cheekDoc);
+      cheeksModel.findByIdAndDelete.mockResolvedValueOnce(cheekDoc);
 
-        const result = await service.deleteCheeks(cheekId, ownerId);
+      const result = await service.deleteCheeks(cheekId, ownerId);
 
-        expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
-        expect(cheeksModel.findByIdAndDelete).toHaveBeenCalledWith(cheekId);
-        expect(result).toEqual({ message: 'Cheeks deleted successfully' });
+      expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
+      expect(cheeksModel.findByIdAndDelete).toHaveBeenCalledWith(cheekId);
+      expect(result).toEqual({ message: 'Cheeks deleted successfully' });
     });
 
-     // ... (other delete tests remain the same)
-     it('should throw NotFoundException if cheek to delete is not found', async () => {
-        // Arrange
-        cheeksModel.findById.mockResolvedValueOnce(null);
+    it('should throw NotFoundException if cheek to delete is not found', async () => {
+      // Arrange
+      cheeksModel.findById.mockResolvedValueOnce(null);
 
-        // Act & Assert
-        await expect(service.deleteCheeks(cheekId, ownerId)).rejects.toThrow(NotFoundException);
-        expect(cheeksModel.findByIdAndDelete).not.toHaveBeenCalled();
+      // Act & Assert
+      await expect(service.deleteCheeks(cheekId, ownerId)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(cheeksModel.findByIdAndDelete).not.toHaveBeenCalled();
     });
 
     it('should throw ForbiddenException if user is not the owner', async () => {
-        // Arrange
-        cheeksModel.findById.mockResolvedValueOnce(cheekDoc);
+      // Arrange
+      cheeksModel.findById.mockResolvedValueOnce(cheekDoc);
 
-        // Act & Assert
-        await expect(service.deleteCheeks(cheekId, nonOwnerId)).rejects.toThrow(ForbiddenException);
-        expect(cheeksModel.findByIdAndDelete).not.toHaveBeenCalled();
+      // Act & Assert
+      await expect(service.deleteCheeks(cheekId, nonOwnerId)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(cheeksModel.findByIdAndDelete).not.toHaveBeenCalled();
     });
   });
 });

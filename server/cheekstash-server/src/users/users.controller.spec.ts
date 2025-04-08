@@ -31,14 +31,11 @@ describe('UsersController', () => {
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UsersController],
-      providers: [
-        { provide: UsersService, useValue: mockUsersService },
-      ],
+      providers: [{ provide: UsersService, useValue: mockUsersService }],
     })
-    // Mock the JwtAuthGuard globally for this controller test suite
-    .overrideGuard(JwtAuthGuard)
-    .useValue({ canActivate: jest.fn(() => true) }) // Allow access
-    .compile();
+      .overrideGuard(JwtAuthGuard)
+      .useValue({ canActivate: jest.fn(() => true) }) // Allow access
+      .compile();
 
     controller = module.get<UsersController>(UsersController);
     service = module.get<UsersService>(UsersService);
@@ -78,10 +75,12 @@ describe('UsersController', () => {
     });
 
     it('should throw NotFoundException if name query is missing', async () => {
-       // Note: NestJS Pipes usually handle this, but your controller code also checks
-       // We test the controller's explicit check here.
-       await expect(controller.searchUsers(undefined as any)).rejects.toThrow(NotFoundException);
-       expect(service.searchByName).not.toHaveBeenCalled();
+      // Note: NestJS Pipes usually handle this, but your controller code also checks
+      // Test the controller's explicit check.
+      await expect(controller.searchUsers(undefined as any)).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(service.searchByName).not.toHaveBeenCalled();
     });
   });
 
@@ -94,7 +93,7 @@ describe('UsersController', () => {
 
       const result = await controller.findUsersByCheekCount(minQuery);
 
-      expect(service.findByCheekCount).toHaveBeenCalledWith(5); // Ensure it's parsed to number
+      expect(service.findByCheekCount).toHaveBeenCalledWith(5);
       expect(result).toEqual(expectedUsers);
     });
   });
@@ -102,22 +101,30 @@ describe('UsersController', () => {
   // --- Test findUserById ---
   describe('findUserById', () => {
     it('should call service.findById with the id param', async () => {
-       const userId = 'someMongoId';
-       const expectedUser = { id: userId, username: 'foundUser' };
-       mockUsersService.findById.mockResolvedValueOnce(expectedUser);
+      const userId = 'someMongoId';
+      const expectedUser = { id: userId, username: 'foundUser' };
+      mockUsersService.findById.mockResolvedValueOnce(expectedUser);
 
-       const result = await controller.findUserById(userId);
+      const result = await controller.findUserById(userId);
 
-       expect(service.findById).toHaveBeenCalledWith(userId);
-       expect(result).toEqual(expectedUser);
+      expect(service.findById).toHaveBeenCalledWith(userId);
+      expect(result).toEqual(expectedUser);
     });
   });
 
   // --- Test register ---
   describe('register', () => {
     it('should call service.create with the dto', async () => {
-      const createUserDto: CreateUserDto = { username: 'new', email: 'new@test.com', password: 'pw' };
-      const createdUser = { _id: 'newId', username: 'new', email: 'new@test.com' };
+      const createUserDto: CreateUserDto = {
+        username: 'new',
+        email: 'new@test.com',
+        password: 'pw',
+      };
+      const createdUser = {
+        _id: 'newId',
+        username: 'new',
+        email: 'new@test.com',
+      };
       mockUsersService.create.mockResolvedValueOnce(createdUser);
 
       const result = await controller.register(createUserDto);
@@ -129,45 +136,54 @@ describe('UsersController', () => {
 
   // --- Test updateProfile ---
   describe('updateProfile', () => {
-     const updateUserDto: UpdateUserDto = { displayName: 'Updated Name' };
-     const requestingUser = { id: new Types.ObjectId().toHexString(), role: 'user' }; // Mock JWT payload
-     const req = mockRequest(requestingUser); // Mock the NestJS request object
-     const updatedUserDoc = {
-         _id: new Types.ObjectId(requestingUser.id),
-         username: 'test',
-         email: 'test@test.com',
-         role: 'user',
-         profile: { displayName: 'Updated Name', bio: undefined, avatarUrl: undefined }
-     };
+    const updateUserDto: UpdateUserDto = { displayName: 'Updated Name' };
+    const requestingUser = {
+      id: new Types.ObjectId().toHexString(),
+      role: 'user',
+    }; // Mock JWT payload
+    const req = mockRequest(requestingUser); // Mock the NestJS request object
+    const updatedUserDoc = {
+      _id: new Types.ObjectId(requestingUser.id),
+      username: 'test',
+      email: 'test@test.com',
+      role: 'user',
+      profile: {
+        displayName: 'Updated Name',
+        bio: undefined,
+        avatarUrl: undefined,
+      },
+    };
 
-     it('should call service.updateProfile with user id, dto, and requester info', async () => {
-        // Arrange
-        mockUsersService.updateProfile.mockResolvedValueOnce(updatedUserDoc);
+    it('should call service.updateProfile with user id, dto, and requester info', async () => {
+      // Arrange
+      mockUsersService.updateProfile.mockResolvedValueOnce(updatedUserDoc);
 
-        // Act
-        const result: UserResponseDto = await controller.updateProfile(updateUserDto, req);
+      // Act
+      const result: UserResponseDto = await controller.updateProfile(
+        updateUserDto,
+        req,
+      );
 
-        // Assert
-        expect(service.updateProfile).toHaveBeenCalledWith(
-            requestingUser.id,
-            updateUserDto,
-            { id: requestingUser.id, role: requestingUser.role } // Ensure correct requester info is passed
-        );
-        // Check if the response is mapped correctly to UserResponseDto
-        expect(result).toEqual({
-           id: requestingUser.id,
-           username: updatedUserDoc.username,
-           email: updatedUserDoc.email,
-           displayName: updatedUserDoc.profile.displayName,
-           bio: updatedUserDoc.profile.bio,
-           avatarUrl: updatedUserDoc.profile.avatarUrl,
-           role: updatedUserDoc.role,
-        });
-     });
+      // Assert
+      expect(service.updateProfile).toHaveBeenCalledWith(
+        requestingUser.id,
+        updateUserDto,
+        { id: requestingUser.id, role: requestingUser.role }, // Ensure correct requester info is passed
+      );
+      // Check if the response is mapped correctly to UserResponseDto
+      expect(result).toEqual({
+        id: requestingUser.id,
+        username: updatedUserDoc.username,
+        email: updatedUserDoc.email,
+        displayName: updatedUserDoc.profile.displayName,
+        bio: updatedUserDoc.profile.bio,
+        avatarUrl: updatedUserDoc.profile.avatarUrl,
+        role: updatedUserDoc.role,
+      });
+    });
 
-     // Add tests for cases where updateProfile might throw errors,
-     // although those errors originate in the service which is already tested.
-     // Focus here is on the controller calling the service correctly.
+    // Add tests for cases where updateProfile might throw errors,
+    // although those errors originate in the service which is already tested.
+    // Focus here is on the controller calling the service correctly.
   });
-
 });
