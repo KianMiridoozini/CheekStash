@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
@@ -17,7 +21,7 @@ export class AuthService {
    * Validate user credentials.
    */
   async validateUser(email: string, password: string): Promise<UserDocument> {
-    const user = await this.usersService.findByEmail(email);
+    const user = await this.usersService.findByEmail(email, true);
     if (!user) {
       throw new NotFoundException('User not found');
     }
@@ -31,11 +35,16 @@ export class AuthService {
   /**
    * Login: Accepts a user document and returns a JWT token.
    */
-  async login(user: UserDocument): Promise<{ token: string; username: string }> {
-    const token = this.jwtService.sign({ id: user._id });
+  async login(
+    user: UserDocument,
+  ): Promise<{ token: string; username: string }> {
+    const token = this.jwtService.sign({
+      id: user._id,
+      username: user.username,
+      role: user.role,
+    });
     return { token, username: user.username };
   }
-  
 
   async changePassword(
     userId: string,
@@ -48,6 +57,10 @@ export class AuthService {
     requester: { id: string; role: string },
     confirmPassword: string,
   ): Promise<{ message: string }> {
-    return this.usersService.deleteUser(requester.id, confirmPassword, requester);
+    return this.usersService.deleteUser(
+      requester.id,
+      confirmPassword,
+      requester,
+    );
   }
 }
