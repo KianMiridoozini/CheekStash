@@ -31,7 +31,7 @@ jobs:
           --health-cmd "mongosh \"mongodb://$MONGO_INITDB_ROOT_USERNAME:$MONGO_INITDB_ROOT_PASSWORD@localhost:27017/admin?authSource=admin\" --eval \"db.adminCommand('ping')\" --quiet"
           --health-interval 20s
           --health-timeout 10s
-          --health-retries: 10
+          --health-retries 10
           --health-start-period 30s
 
     steps:
