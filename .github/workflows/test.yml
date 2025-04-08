@@ -27,7 +27,7 @@ jobs:
           MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_INITDB_ROOT_USERNAME }}
           MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_INITDB_ROOT_PASSWORD }}
         options: >-
-          --health-cmd "mongo --eval \"db.adminCommand('ping')\""
+          --health-cmd "mongo admin --username \"$MONGO_INITDB_ROOT_USERNAME\" --password \"$MONGO_INITDB_ROOT_PASSWORD\" --eval \"db.adminCommand('ping')\" --quiet"
           --health-interval 25s 
           --health-timeout 20s 
           --health-retries 15
