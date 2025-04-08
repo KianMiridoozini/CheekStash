@@ -48,15 +48,6 @@ jobs:
         run: npm run test
         working-directory: server/cheekstash-server
 
-      - name: Debug MongoDB Service Connectivity
-        run: |
-          echo "--- Waiting 5 seconds ---"; sleep 5
-          echo "--- Checking environment variable ---"
-          echo "DATABASE_URI=${DATABASE_URI}"
-          echo "--- Attempting connection to localhost:27017 with netcat ---"
-          if ! command -v nc &> /dev/null; then sudo apt-get update && sudo apt-get install -y netcat-openbsd; fi
-          nc -zv -w 5 localhost 27017 || echo "Netcat connection to localhost failed"
-
       - name: Run integration tests
         run: npm run test:int
         working-directory: server/cheekstash-server
