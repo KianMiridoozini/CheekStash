@@ -19,11 +19,22 @@ import { CronModule } from './devTools/cron.module';
     }),
     MongooseModule.forRootAsync({
       imports: [ConfigModule], // Import ConfigModule here
-      useFactory: async (configService: ConfigService) => ({
-        uri: configService.get<string>('DATABASE_URI'),
-        // Add other Mongoose options if needed
-      }),
-      inject: [ConfigService], // Inject ConfigService
+      useFactory: async (configService: ConfigService) => {
+        const uri = configService.get<string>('DATABASE_URI');
+        // Optional: Add logging here in CI to confirm the URI is being read
+        if (process.env.CI === 'true') {
+          console.log(`[CI LOG] Attempting to connect with DATABASE_URI: ${uri ? uri.replace(/:([^:@\/]+)@/, ':<password>@') : 'undefined'}`);
+        }
+        if (!uri) {
+          throw new Error('DATABASE_URI is not defined. Check environment variables and .env file loading.');
+        }
+        return {
+          uri: uri,
+          // Increase timeout for initial connection in CI? Default Mongoose timeout is 30s.
+          // serverSelectionTimeoutMS: 45000,
+        };
+      },
+      inject: [ConfigService],
     }),
     UsersModule, 
     AuthModule, 
