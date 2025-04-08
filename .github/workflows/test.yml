@@ -14,7 +14,7 @@ jobs:
     env:
       MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
       MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
-      DATABASE_URI: mongodb://${{ secrets.MONGO_INITDB_ROOT_USERNAME }}:${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}@mongo:27017/my_local_app_db_test?authSource=admin
+      DATABASE_URI: mongodb://${{ secrets.MONGO_INITDB_ROOT_USERNAME }}:${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}@localhost:27017/my_local_app_db_test?authSource=admin
 
     services:
       mongo:
@@ -28,7 +28,7 @@ jobs:
           --health-cmd "mongosh \"mongodb://$MONGO_INITDB_ROOT_USERNAME:$MONGO_INITDB_ROOT_PASSWORD@localhost:27017/admin?authSource=admin\" --eval \"db.adminCommand('ping')\" --quiet"
           --health-interval 20s 
           --health-timeout 10s 
-          --health-retries 5
+          --health-retries 10
           --health-start-period 30s
 
     steps:
@@ -50,21 +50,12 @@ jobs:
 
       - name: Debug MongoDB Service Connectivity
         run: |
-          echo "--- Waiting 5 seconds for network stabilization ---"
-          sleep 5
-          echo "--- /etc/hosts ---"
-          cat /etc/hosts
-          echo "--- /etc/resolv.conf ---"
-          cat /etc/resolv.conf
-          echo "--- Attempting DNS lookup for 'mongo' using getent ---"
-          getent hosts mongo || echo "getent failed to resolve mongo"
-          echo "--- Attempting DNS lookup for 'mongo' using nslookup (if available) ---"
-          nslookup mongo || echo "nslookup failed or is not installed"
-          echo "--- Attempting connection to mongo:27017 with netcat ---"
-          sudo apt-get update && sudo apt-get install -y netcat-openbsd
-          nc -zv -w 5 mongo 27017 || echo "Netcat connection failed"
-          echo "--- Checking environment variable again ---"
+          echo "--- Waiting 5 seconds ---"; sleep 5
+          echo "--- Checking environment variable ---"
           echo "DATABASE_URI=${DATABASE_URI}"
+          echo "--- Attempting connection to localhost:27017 with netcat ---"
+          if ! command -v nc &> /dev/null; then sudo apt-get update && sudo apt-get install -y netcat-openbsd; fi
+          nc -zv -w 5 localhost 27017 || echo "Netcat connection to localhost failed"
 
       - name: Run integration tests
         run: npm run test:int
