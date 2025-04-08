@@ -1,0 +1,63 @@
+name: Server Tests
+
+on:
+  # Run the workflow whenever there's a push or pull request targeting the develop branch.
+  push:
+    branches:
+      - develop
+  pull_request:
+    branches:
+      - develop
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    env:
+      MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
+      MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
+      # This DATABASE_URI also uses the job env vars
+      DATABASE_URI: mongodb://${{ secrets.MONGO_INITDB_ROOT_USERNAME }}:${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}@mongo:27017/my_local_app_db_test?authSource=admin
+
+    services:
+      mongo:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+        env:
+          MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_INITDB_ROOT_USERNAME }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_INITDB_ROOT_PASSWORD }}
+        options: >-
+          --health-cmd "mongo --eval 'db.runCommand({ ping: 1 })'" 
+          --health-interval 10s 
+          --health-timeout 5s 
+          --health-retries 5
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: server/cheekstash-server
+
+      - name: Wait for MongoDB to be ready
+        run: |
+          for i in {1..10}; do
+            nc -z mongo 27017 && exit 0
+            echo "Waiting for MongoDB..."
+            sleep 3
+          done
+          exit 1
+
+      - name: Run unit tests
+        run: npm run test
+        working-directory: server/cheekstash-server
+
+      - name: Run integration tests
+        run: npm run test:int
+        working-directory: server/cheekstash-server
