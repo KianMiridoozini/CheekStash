@@ -136,14 +136,12 @@ describe('UsersController (Integration)', () => {
     };
 
     it('should register a new user successfully', async () => {
-      // Act
       const response = await request(httpServer)
         .post(registerUrl)
         .send(validUserDto);
 
       // console.log('Response Body:', JSON.stringify(response.body, null, 2)); // Keep for debugging if needed
 
-      // Assert
       expect(response.status).toBe(201);
       expect(response.body).toMatchObject({
         // Match the actual received structure
@@ -166,7 +164,7 @@ describe('UsersController (Integration)', () => {
 
       const dbUser = await userModel.findOne({ email: validUserDto.email });
       expect(dbUser).not.toBeNull();
-      expect(dbUser!.profile).toEqual({}); // Default saved in DB
+      expect(dbUser!.profile).toEqual({}); 
       const dbUserWithHash = await userModel
         .findOne({ email: validUserDto.email })
         .select('+passwordHash');
@@ -480,7 +478,7 @@ describe('UsersController (Integration)', () => {
           email: userForAuthData.email,
           // Hash password for storage
           passwordHash: await bcrypt.hash(userForAuthData.password, 10),
-          role: 'user', // Default role
+          role: 'user',  // Default role
           // profile: {}, // Mongoose default will handle this
           // followedUsers: [], // Mongoose default will handle this
         });

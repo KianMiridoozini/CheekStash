@@ -176,7 +176,7 @@ describe('UsersService', () => {
     };
     const hashedPassword = 'hashedPasswordCreate';
     // Define what the saved user should look like
-    const savedUserId = new Types.ObjectId(); // Use if needed, otherwise expect.any
+    // const savedUserId = new Types.ObjectId();  // Use if needed, otherwise expect.any
     const expectedSavedUser = {
       // Data shape of the *resolved* saved user
       _id: expect.any(Types.ObjectId),

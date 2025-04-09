@@ -118,7 +118,7 @@ describe('POST /api/auth/login', () => {
     expect(response.body).toHaveProperty('username', testUserData.username);
 
     const decoded = jwtService.verify(response.body.token);
-    expect(decoded.id).toEqual(createdUser!.id); // Use non-null assertion
+    expect(decoded.id).toEqual(createdUser!.id); 
     expect(decoded.username).toEqual(testUserData.username);
   });
 

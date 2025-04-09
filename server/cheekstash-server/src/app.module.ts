@@ -15,10 +15,10 @@ import { CronModule } from './devTools/cron.module';
       // Load .env.test if NODE_ENV is 'test', otherwise load .env
       envFilePath: process.env.NODE_ENV === 'test' ? '.env.test' : '.env',
       ignoreEnvFile: process.env.CI === 'true', // Ignore .env file in CI
-      isGlobal: true, // Make ConfigService available globally
+      isGlobal: true, 
     }),
     MongooseModule.forRootAsync({
-      imports: [ConfigModule], // Import ConfigModule here
+      imports: [ConfigModule],
       useFactory: async (configService: ConfigService) => {
         const uri = configService.get<string>('DATABASE_URI');
         if (process.env.CI === 'true') {
