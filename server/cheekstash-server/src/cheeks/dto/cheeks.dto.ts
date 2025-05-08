@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNumber, ArrayMinSize , ValidateNested , IsBoolean, IsArray, IsOptional } from 'class-validator';
+import { IsString, IsNumber, ArrayMinSize , ValidateNested , IsBoolean, IsArray, IsOptional, IsMongoId, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 import { LinkDto } from './link.dto';
 
@@ -16,22 +16,27 @@ export class CheeksDto {
     description: 'Cheeks description',
   })
   @IsString()
-  description: string;
+  @IsNotEmpty()
+  @IsOptional()
+  description?: string;
 
   @ApiProperty({
-    example: ['AI', 'Machine Learning', 'Productivity'],
-    description: 'Tags for the Cheeks',
+    example: '647f1a2e3c4d5e6f7g8h9i0j',
+    description: 'Category ID of the Cheeks',
+  })
+  @IsMongoId()
+  @IsNotEmpty()
+  categoryId: string;
+
+  @ApiProperty({
+    example: ['artificial-intelligence', 'machine-learning'],
+    description: 'Tag names for the Cheeks. Tags will be created if they don\'t exist.',
+    type: [String],
   })
   @IsArray()
   @IsString({ each: true })
-  tags: string[];
-
-  @ApiProperty({
-    example: 'Tech',
-    description: 'Category of the Cheeks',
-  })
-  @IsString()
-  category: string;
+  @IsOptional()
+  tagNames?: string[];
 
   @ApiProperty({
     example: true,

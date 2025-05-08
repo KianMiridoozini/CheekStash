@@ -19,7 +19,7 @@ export class ReviewsController {
   @ApiResponse({ status: 201, description: 'Review created successfully' })
   @ApiResponse({ status: 401, description: 'Unauthorized' })
   @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth() // Adds "Authorize" button in Swagger
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Submit a review for a cheek' })
   async createReview(@Body() createReviewDto: CreateReviewDto, @Req() req) {
     return this.reviewsService.createReview(createReviewDto, req.user.id, req.user.username);
