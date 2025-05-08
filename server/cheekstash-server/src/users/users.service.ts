@@ -11,8 +11,12 @@ import { User, UserDocument } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { Cheeks, CheeksDocument } from '../cheeks/schemas/cheeks.schema';
+import { Cheeks, CheeksDocument } from '../cheeks/schemas/cheek.schema';
 import { Review, ReviewDocument } from '../reviews/schemas/review.schema';
+import { CloudinaryService } from '../common/cloudinary.service';
+import { File } from 'multer';
+import { assertUserFound } from '../common/guards/user-check.util';
+import { UserResponseDto } from './dto/user-response.dto';
 
 @Injectable()
 export class UsersService {
@@ -20,7 +24,8 @@ export class UsersService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Cheeks.name) private cheekModel: Model<CheeksDocument>,
     @InjectModel(Review.name) private reviewModel: Model<ReviewDocument>,
-  ) {}
+    private readonly cloudinaryService: CloudinaryService,
+  ) { }
 
   /**
    * Create a new user account.
@@ -57,7 +62,7 @@ export class UsersService {
       .findById(id)
       .select('-passwordHash')
       .exec();
-    if (!user) throw new NotFoundException('User not found');
+    assertUserFound(user);
     return user;
   }
 
@@ -151,7 +156,6 @@ export class UsersService {
     if (updateUserDto.avatarUrl !== undefined) {
       updateData['profile.avatarUrl'] = updateUserDto.avatarUrl;
     }
-    // Optionally, update other fields if necessary
 
     const updatedUser = await this.userModel.findByIdAndUpdate(
       targetUserId,
@@ -179,9 +183,7 @@ export class UsersService {
       .select('+passwordHash')
       .exec();
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    assertUserFound(user);
 
     const isValid = await bcrypt.compare(oldPassword, user.passwordHash); // Should now have hash
     if (!isValid) {
@@ -215,11 +217,9 @@ export class UsersService {
     const user = await this.userModel
       .findById(targetUserId)
       .select('+passwordHash')
-      .exec(); 
+      .exec();
 
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    assertUserFound(user);
 
     const isValid = await bcrypt.compare(confirmPassword, user.passwordHash); // Should now have hash
     if (!isValid) {
@@ -233,5 +233,26 @@ export class UsersService {
     return {
       message: 'User and all associated cheeks and reviews have been deleted',
     };
+  }
+
+  /**
+   * Upload and set user profile image (avatar)
+   */
+  async uploadProfileImage(userId: string, file: File): Promise<UserDocument> {
+    const user = await this.userModel.findById(userId);
+    assertUserFound(user);
+    // Remove old image from Cloudinary if exists
+    if (user.profile?.profileImagePublicId) {
+      await this.cloudinaryService.deleteImage(user.profile.profileImagePublicId);
+    }
+    // Upload new image
+    const uploadResult: any = await this.cloudinaryService.uploadImage(file);
+    user.profile = {
+      ...user.profile,
+      avatarUrl: uploadResult.secure_url,
+      profileImagePublicId: uploadResult.public_id,
+    };
+    await user.save();
+    return user;
   }
 }

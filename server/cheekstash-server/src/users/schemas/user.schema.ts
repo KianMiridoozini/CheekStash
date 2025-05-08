@@ -34,6 +34,7 @@ export class User {
     displayName?: string;
     bio?: string;
     avatarUrl?: string;
+    profileImagePublicId?: string; // For Cloudinary management
   };
 
   @Prop({ type: [{ type: Types.ObjectId, ref: 'User' }], default: [] })

@@ -8,6 +8,8 @@ import { CheeksModule } from './cheeks/cheeks.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { AuthModule } from './auth/auth.module';
 import { CronModule } from './devTools/cron.module';
+import { CategoriesModule } from './categories/categories.module'; // Import CategoriesModule
+import { TagsModule } from './tags/tags.module'; // Import TagsModule
 
 @Module({
   imports: [
@@ -37,6 +39,8 @@ import { CronModule } from './devTools/cron.module';
     AuthModule, 
     CheeksModule, 
     ReviewsModule, 
+    CategoriesModule,
+    TagsModule,
     CronModule
   ],
   controllers: [AppController],
