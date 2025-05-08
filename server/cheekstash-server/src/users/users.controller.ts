@@ -8,7 +8,13 @@ import {
   Put,
   Req,
   NotFoundException,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  Patch,
+  HttpCode,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -17,8 +23,7 @@ import { UserDocument } from './schemas/user.schema';
 import { Types } from 'mongoose';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { UseGuards } from '@nestjs/common';
-import { HttpCode } from '@nestjs/common';
+import { File } from 'multer';
 
 @ApiTags('users')
 @Controller('users')
@@ -109,6 +114,31 @@ export class UsersController {
     })) as UserDocument;
     return {
       id: (updatedUser._id as Types.ObjectId).toHexString(),
+      username: updatedUser.username,
+      email: updatedUser.email,
+      displayName: updatedUser.profile?.displayName,
+      bio: updatedUser.profile?.bio,
+      avatarUrl: updatedUser.profile?.avatarUrl,
+      role: updatedUser.role,
+    };
+  }
+
+  /**
+   * Upload or update user profile image (avatar)
+   */
+  @Patch('me/avatar')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @UseInterceptors(FileInterceptor('file'))
+  @ApiOperation({ summary: 'Upload or update user profile image (avatar)' })
+  @ApiResponse({ status: 200, description: 'Profile image updated' })
+  async uploadProfileImage(
+    @UploadedFile() file: File,
+    @Req() req,
+  ): Promise<UserResponseDto> {
+    const updatedUser = await this.usersService.uploadProfileImage(req.user.id, file);
+    return {
+      id: String((updatedUser as UserDocument)._id),
       username: updatedUser.username,
       email: updatedUser.email,
       displayName: updatedUser.profile?.displayName,
