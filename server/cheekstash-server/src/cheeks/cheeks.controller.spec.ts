@@ -51,7 +51,18 @@ describe('CheeksController', () => {
 
   // --- Test create ---
   describe('create', () => {
-    const cheeksDto: CheeksDto = { title: 'New Cheek', description: 'd', category: 'c', links: [{ title: 't', url: 'u' }], tags: [], isPublic: false };
+    const categoryId = new Types.ObjectId().toHexString();
+    const cheeksDto: CheeksDto = {
+      title: 'New Cheek',
+      description: 'd',
+      categoryId: categoryId,
+      links: [
+        { title: 't', url: 'u', description: 'd', order: 0 },
+        { title: 't2', url: 'u2', description: 'd2', order: 1 },
+      ],
+      tagNames: ['test-tag', 'another-tag'], // Changed from tagIds to tagNames
+      isPublic: false,
+    };
     const userPayload = { id: new Types.ObjectId().toHexString(), username: 'testuser' };
     const req = mockRequest(userPayload);
     const createdCheek = { ...cheeksDto, _id: new Types.ObjectId(), owner: userPayload.id };

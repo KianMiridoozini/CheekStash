@@ -16,16 +16,18 @@ import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from './users.service';
 import { User, UserDocument } from './schemas/user.schema';
-import { Cheeks, CheeksDocument } from '../cheeks/schemas/cheeks.schema';
+import { Cheeks, CheeksDocument } from '../cheeks/schemas/cheek.schema';
 import { Review, ReviewDocument } from '../reviews/schemas/review.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { CloudinaryService } from '../common/cloudinary.service';
 import {
   BadRequestException,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { File } from 'multer';
 
 // --- Mongoose Mocking Setup ---
 
@@ -128,6 +130,7 @@ describe('UsersService', () => {
   let userModelMock: typeof MockUserModel;
   let cheekModel: ReturnType<typeof createMockCheekModel>;
   let reviewModel: ReturnType<typeof createMockReviewModel>;
+  let cloudinaryService: any;
 
   // Define shared mockSave function *if* needed across tests, otherwise define in test
   // let mockSave: jest.Mock; // If needed
@@ -144,6 +147,10 @@ describe('UsersService', () => {
 
     cheekModel = createMockCheekModel();
     reviewModel = createMockReviewModel();
+    cloudinaryService = {
+      uploadImage: jest.fn(),
+      deleteImage: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -151,6 +158,7 @@ describe('UsersService', () => {
         { provide: getModelToken(User.name), useValue: MockUserModel },
         { provide: getModelToken(Cheeks.name), useValue: cheekModel },
         { provide: getModelToken(Review.name), useValue: reviewModel },
+        { provide: CloudinaryService, useValue: cloudinaryService },
       ],
     }).compile();
 
@@ -985,6 +993,41 @@ describe('UsersService', () => {
       expect(cheekModel.deleteMany).not.toHaveBeenCalled();
       expect(reviewModel.deleteMany).not.toHaveBeenCalled();
       expect(MockUserModel.findByIdAndDelete).not.toHaveBeenCalled();
+    });
+  });
+
+  // --- Test uploadProfileImage Method ---
+  describe('uploadProfileImage', () => {
+    it('should upload a new image, delete the old one, and update the user profile', async () => {
+      const userId = 'user123';
+      const file = { buffer: Buffer.from('test') } as File;
+      const oldPublicId = 'old-public-id';
+      const userDoc = {
+        profile: { profileImagePublicId: oldPublicId, avatarUrl: undefined },
+        save: jest.fn().mockResolvedValue(true),
+      };
+      MockUserModel.findById.mockResolvedValue(userDoc);
+      cloudinaryService.uploadImage.mockResolvedValue({
+        secure_url: 'http://cloudinary.com/new.jpg',
+        public_id: 'new-public-id',
+      });
+      cloudinaryService.deleteImage.mockResolvedValue(true);
+
+      await service.uploadProfileImage(userId, file);
+
+      expect(MockUserModel.findById).toHaveBeenCalledWith(userId);
+      expect(cloudinaryService.deleteImage).toHaveBeenCalledWith(oldPublicId);
+      expect(cloudinaryService.uploadImage).toHaveBeenCalledWith(file);
+      expect(userDoc.profile.avatarUrl).toBe('http://cloudinary.com/new.jpg');
+      expect(userDoc.profile.profileImagePublicId).toBe('new-public-id');
+      expect(userDoc.save).toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if user is not found', async () => {
+      MockUserModel.findById.mockResolvedValue(null);
+      await expect(
+        service.uploadProfileImage('badid', {} as File),
+      ).rejects.toThrow(NotFoundException);
     });
   });
 });
