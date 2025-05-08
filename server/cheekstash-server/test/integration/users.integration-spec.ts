@@ -602,5 +602,23 @@ describe('UsersController (Integration)', () => {
         ),
       ).toBeTruthy();
     });
+
+    it('should ignore profileImagePublicId if sent in update (not leak to response)', async () => {
+      const updateDto: UpdateUserDto = {
+        displayName: 'Should Not Leak',
+        profileImagePublicId: 'some-cloudinary-id',
+      };
+      const response = await request(httpServer)
+        .put(profileUrl)
+        .set('Authorization', `Bearer ${authToken}`)
+        .send(updateDto);
+      expect(response.status).toBe(200);
+      expect(response.body.displayName).toEqual(updateDto.displayName);
+      // Should not leak profileImagePublicId to response
+      expect(response.body.profileImagePublicId).toBeUndefined();
+      // Should not set in DB profile (unless you want to allow it)
+      const dbUser = await userModel.findById(createdUserForAuth!.id);
+      expect(dbUser!.profile?.profileImagePublicId).toBeUndefined();
+    });
   });
 });
