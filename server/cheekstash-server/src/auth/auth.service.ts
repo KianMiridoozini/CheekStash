@@ -9,6 +9,7 @@ import { UsersService } from '../users/users.service';
 import { LoginUserDto } from '../users/dto/login-user.dto';
 import { ChangePasswordDto } from '../users/dto/change-password.dto';
 import { UserDocument } from '../users/schemas/user.schema';
+import { assertUserFound } from '../common/guards/user-check.util';
 
 @Injectable()
 export class AuthService {
@@ -22,9 +23,7 @@ export class AuthService {
    */
   async validateUser(email: string, password: string): Promise<UserDocument> {
     const user = await this.usersService.findByEmail(email, true);
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    assertUserFound(user);    
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
       throw new UnauthorizedException('Invalid credentials');

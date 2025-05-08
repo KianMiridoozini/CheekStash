@@ -1,0 +1,70 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - Develop 
+  pull_request:
+    branches:
+      - Develop 
+
+jobs:
+  test:
+    name: Test 
+    runs-on: ubuntu-latest
+    env:
+   
+      MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
+      MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
+     
+      DATABASE_URI: mongodb://${{ secrets.MONGO_INITDB_ROOT_USERNAME }}:${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}@localhost:27017/my_local_app_db_test?authSource=admin
+
+    services:
+      mongo:
+        image: mongo:latest
+        ports: 
+          - 27017:27017
+        env:
+          MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_INITDB_ROOT_USERNAME }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_INITDB_ROOT_PASSWORD }}
+        options: >- 
+          --health-cmd "mongosh \"mongodb://$MONGO_INITDB_ROOT_USERNAME:$MONGO_INITDB_ROOT_PASSWORD@localhost:27017/admin?authSource=admin\" --eval \"db.adminCommand('ping')\" --quiet"
+          --health-interval 20s
+          --health-timeout 10s
+          --health-retries 10
+          --health-start-period 30s
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4 
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4 
+        with:
+          node-version: "22" 
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: server/cheekstash-server 
+
+      - name: Run unit tests
+        run: npm run test
+        working-directory: server/cheekstash-server
+
+      - name: Run integration tests
+        run: npm run test:int
+        working-directory: server/cheekstash-server
+
+  deploy:
+    if: github.ref == 'refs/heads/Develop' && github.event_name == 'push'
+    name: Deploy to Render
+    needs: [test] 
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger Render Deploy Hook
+        uses: johnbeynon/render-deploy-action@v0.0.8
+        with:
+          service-id: ${{ secrets.RENDER_SERVICE_ID }} 
+
+          api-key: ${{ secrets.RENDER_API_KEY }}

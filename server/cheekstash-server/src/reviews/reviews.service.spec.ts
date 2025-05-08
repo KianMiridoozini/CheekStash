@@ -239,7 +239,7 @@ describe('ReviewsService', () => {
     const reviewId = new Types.ObjectId().toHexString();
     const ownerId = new Types.ObjectId().toHexString();
     const nonOwnerId = new Types.ObjectId().toHexString();
-    const reviewDoc = mockDocument({}, ownerId); // Instance that will be deleted
+    const reviewDoc = mockDocument({}, ownerId); 
 
     it('should delete the review if user is the owner', async () => {
         // Arrange
@@ -250,7 +250,6 @@ describe('ReviewsService', () => {
 
         // Assert
         expect(reviewModel.findById).toHaveBeenCalledWith(reviewId);
-        // Check that deleteOne was called on the instance
         expect(reviewDoc.deleteOne).toHaveBeenCalled();
         expect(result).toEqual({ message: 'Review deleted successfully' });
     });
