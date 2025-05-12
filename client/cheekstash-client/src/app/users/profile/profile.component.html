@@ -1,1 +1,89 @@
-<p>profile works!</p>
+<div class="container mx-auto p-4 sm:p-6 lg:p-8">
+    <!-- Loading State -->
+    <div *ngIf="isLoading() && !profileUser()" class="flex justify-center items-center py-10">
+        <span class="loading loading-lg loading-spinner text-primary"></span>
+    </div>
+
+    <!-- Error State -->
+    <div *ngIf="error() && !isLoading()" class="alert alert-error shadow-lg">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none"
+                viewBox="0 0 24 24">
+                <!-- Ensure your SVG has path data if you want it to render -->
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{{ error() }}</span>
+        </div>
+    </div>
+
+    <!-- Profile Content -->
+    <div *ngIf="profileUser() && !isLoading()">
+        <!-- Profile Header Section -->
+        <div class="bg-base-200 shadow-xl rounded-lg p-6 md:flex md:items-start md:space-x-6">
+            <!-- Avatar -->
+            <div class="flex-shrink-0 mb-6 md:mb-0 text-center md:text-left">
+                <img [src]="profileUser()?.profile?.avatarUrl || 'assets/images/default-avatar.png'"
+                    [alt]="(profileUser()?.username || 'User') + '\'s avatar'"
+                    class="w-32 h-32 rounded-full mx-auto md:mx-0 object-cover border-4 border-primary">
+            </div>
+
+            <!-- User Info & Actions -->
+            <div class="flex-grow text-center md:text-left">
+                <h1 class="text-3xl font-bold">{{ profileUser()?.profile?.displayName || profileUser()?.username }}</h1>
+                <p class="text-neutral-content">&#64; {{ profileUser()?.username }}</p>
+                <p *ngIf="profileUser()?.profile?.bio" class="mt-2 text-base-content/80">{{ profileUser()?.profile?.bio
+                    }}</p>
+
+                <!-- Action Buttons -->
+                <div *ngIf="isOwnProfile()" class="mt-4 flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-2">
+                    <a routerLink="/profile/edit" class="btn btn-outline btn-primary btn-sm w-full md:w-auto">Edit
+                        Profile</a>
+                    <button (click)="openChangePasswordModal()"
+                        class="btn btn-outline btn-secondary btn-sm w-full md:w-auto">Change Password</button>
+                    <button (click)="openDeleteAccountModal()"
+                        class="btn btn-outline btn-error btn-sm w-full md:w-auto">Delete Account</button>
+                </div>
+            </div>
+        </div>
+        <!-- User's Cheeks Section -->
+        <div class="mt-8">
+            <h2 class="text-2xl font-bold mb-6">{{ cheeksTitle() }}</h2>
+
+            <div *ngIf="userCheeks().length === 0 && !isLoading()" class="text-center py-10 bg-base-200 rounded-lg">
+                <p class="text-lg">
+                    {{ isOwnProfile() ? 'You have not created any cheeks yet.' : (profileUser()?.username || 'This
+                    user') + ' has not created any cheeks yet.' }}
+                </p>
+                <a *ngIf="isOwnProfile()" routerLink="/cheeks/create" class="btn btn-primary mt-4">Create Your First
+                    Cheek</a>
+            </div>
+
+            <!-- Cheeks Grid -->
+            <div *ngIf="userCheeks().length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div *ngFor="let cheek of userCheeks()"
+                    class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow duration-300">
+                    <div class="card-body">
+                        <h3 class="card-title">
+                            <a [routerLink]="['/cheeks', getOwnerUsername(cheek.owner), cheek.slug]"
+                                class="link link-hover">{{ cheek.title }}</a>
+                        </h3>
+                        <p class="text-sm text-base-content/70">By {{ getOwnerUsername(cheek.owner) || 'Unknown' }}</p>
+                        <p class="text-xs text-base-content/50">{{ cheek.createdAt | date:'mediumDate' }}</p>
+                        <!-- More cheek details or actions here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Change Password Modal -->
+<app-change-password-modal *ngIf="showChangePasswordModal()" (modalClosed)="closeChangePasswordModal()"
+    (passwordChanged)="handlePasswordChanged()">
+</app-change-password-modal>
+
+<!-- Delete Account Modal -->
+<app-delete-account-modal *ngIf="showDeleteAccountModal()" (modalClosed)="closeDeleteAccountModal()"
+    (accountDeleted)="handleAccountDeleted()">
+</app-delete-account-modal>
