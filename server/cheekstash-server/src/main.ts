@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { MongooseCastErrorFilter } from './common/filters/mongoose-cast-error/mongoose-cast-error.filter'; // Adjust path
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,7 +15,7 @@ async function bootstrap() {
     {
       origin: '*',
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-      allowedHeaders: ['auth-token', 'Origin', 'X-Requested-With', 'Content-Type', 'Accept'], // Allow specific headers
+      allowedHeaders: ['auth-token', 'Origin', 'X-Requested-With', 'Content-Type', 'Accept'],
       credentials: true,
     },
   );
@@ -26,6 +27,8 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+
+  app.useGlobalFilters(new MongooseCastErrorFilter());
 
   // Swagger Configuration
   const config = new DocumentBuilder()

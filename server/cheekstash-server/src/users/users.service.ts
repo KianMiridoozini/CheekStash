@@ -11,8 +11,12 @@ import { User, UserDocument } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { Cheeks, CheeksDocument } from '../cheeks/schemas/cheeks.schema';
+import { Cheeks, CheeksDocument } from '../cheeks/schemas/cheek.schema';
 import { Review, ReviewDocument } from '../reviews/schemas/review.schema';
+import { CloudinaryService } from '../common/cloudinary.service';
+import { File } from 'multer';
+import { assertUserFound } from '../common/guards/user-check.util';
+import { UserResponseDto } from './dto/user-response.dto';
 
 @Injectable()
 export class UsersService {
@@ -20,7 +24,8 @@ export class UsersService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Cheeks.name) private cheekModel: Model<CheeksDocument>,
     @InjectModel(Review.name) private reviewModel: Model<ReviewDocument>,
-  ) {}
+    private readonly cloudinaryService: CloudinaryService,
+  ) { }
 
   /**
    * Create a new user account.
@@ -53,16 +58,26 @@ export class UsersService {
    * Find a user by ID.
    */
   async findById(id: string): Promise<UserDocument> {
-    const user = await this.userModel.findById(id).select('-passwordHash').exec();
-    if (!user) throw new NotFoundException('User not found');
+    const user = await this.userModel
+      .findById(id)
+      .select('-passwordHash')
+      .exec();
+    assertUserFound(user);
     return user;
   }
 
   /**
    * Find a user by email.
    */
-  async findByEmail(email: string): Promise<UserDocument | null> {
-    return this.userModel.findOne({ email }).exec();
+  async findByEmail(
+    email: string,
+    includePasswordHash = false,
+  ): Promise<UserDocument | null> {
+    const query = this.userModel.findOne({ email });
+    if (includePasswordHash) {
+      query.select('+passwordHash');
+    }
+    return query.exec();
   }
 
   /**
@@ -70,23 +85,28 @@ export class UsersService {
    */
   async searchByName(name: string): Promise<UserDocument[]> {
     try {
-      const users = await this.userModel.find({
-        $or: [
-          { username: { $regex: name, $options: 'i' } },
-          { 'profile.displayName': { $regex: name, $options: 'i' } },
-        ],
-      }).select('-passwordHash').exec();
-  
+      const users = await this.userModel
+        .find({
+          $or: [
+            { username: { $regex: name, $options: 'i' } },
+            { 'profile.displayName': { $regex: name, $options: 'i' } },
+          ],
+        })
+        .select('-passwordHash')
+        .exec();
+
       if (!users || users.length === 0) {
         throw new NotFoundException('No users found with the given name');
       }
-  
+
       return users;
     } catch (error) {
       if (error instanceof NotFoundException) {
         throw error;
       }
-      throw new BadRequestException('An error occurred while searching for users');
+      throw new BadRequestException(
+        'An error occurred while searching for users',
+      );
     }
   }
 
@@ -99,10 +119,15 @@ export class UsersService {
       { $match: { count: { $gte: min } } },
     ]);
     if (aggregationResult.length === 0) {
-      throw new NotFoundException('No users found with the given minimum cheek count');
+      throw new NotFoundException(
+        'No users found with the given minimum cheek count',
+      );
     }
     const userIds = aggregationResult.map((result) => result._id);
-    return this.userModel.find({ _id: { $in: userIds } }).select('-passwordHash').exec();
+    return this.userModel
+      .find({ _id: { $in: userIds } })
+      .select('-passwordHash')
+      .exec();
   }
 
   /**
@@ -116,7 +141,9 @@ export class UsersService {
     requester: { id: string; role: string },
   ): Promise<UserDocument> {
     if (targetUserId !== requester.id && requester.role !== 'admin') {
-      throw new UnauthorizedException('You are not allowed to update this profile');
+      throw new UnauthorizedException(
+        'You are not allowed to update this profile',
+      );
     }
     // Construct update object using dot notation for nested profile fields
     const updateData: any = {};
@@ -129,7 +156,6 @@ export class UsersService {
     if (updateUserDto.avatarUrl !== undefined) {
       updateData['profile.avatarUrl'] = updateUserDto.avatarUrl;
     }
-    // Optionally, update other fields if necessary
 
     const updatedUser = await this.userModel.findByIdAndUpdate(
       targetUserId,
@@ -142,7 +168,6 @@ export class UsersService {
     return updatedUser;
   }
 
-
   /**
    * Change user password.
    * Requires the user to provide the old password for verification.
@@ -152,16 +177,24 @@ export class UsersService {
     changePasswordDto: ChangePasswordDto,
   ): Promise<{ message: string }> {
     const { oldPassword, newPassword } = changePasswordDto;
-    const user = await this.userModel.findById(userId);
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    const isValid = await bcrypt.compare(oldPassword, user.passwordHash);
+
+    const user = await this.userModel
+      .findById(userId)
+      .select('+passwordHash')
+      .exec();
+
+    assertUserFound(user);
+
+    const isValid = await bcrypt.compare(oldPassword, user.passwordHash); // Should now have hash
     if (!isValid) {
       throw new UnauthorizedException('Incorrect old password');
     }
-    user.passwordHash = await bcrypt.hash(newPassword, 10);
-    await user.save();
+
+    const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+    user.passwordHash = hashedNewPassword;
+
+    await user.save(); // Should now work on the full document
+
     return { message: 'Password updated successfully' };
   }
 
@@ -176,20 +209,50 @@ export class UsersService {
     requester: { id: string; role: string },
   ): Promise<{ message: string }> {
     if (targetUserId !== requester.id && requester.role !== 'admin') {
-      throw new UnauthorizedException('You are not allowed to delete this account');
+      throw new UnauthorizedException(
+        'You are not allowed to delete this account',
+      );
     }
-    const user = await this.userModel.findById(targetUserId);
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
-    const isValid = await bcrypt.compare(confirmPassword, user.passwordHash);
+
+    const user = await this.userModel
+      .findById(targetUserId)
+      .select('+passwordHash')
+      .exec();
+
+    assertUserFound(user);
+
+    const isValid = await bcrypt.compare(confirmPassword, user.passwordHash); // Should now have hash
     if (!isValid) {
       throw new UnauthorizedException('Password confirmation failed');
     }
+
     // Cascade delete associated cheeks and reviews
     await this.cheekModel.deleteMany({ owner: targetUserId });
     await this.reviewModel.deleteMany({ userId: targetUserId });
     await this.userModel.findByIdAndDelete(targetUserId);
-    return { message: 'User and all associated cheeks and reviews have been deleted' };
+    return {
+      message: 'User and all associated cheeks and reviews have been deleted',
+    };
+  }
+
+  /**
+   * Upload and set user profile image (avatar)
+   */
+  async uploadProfileImage(userId: string, file: File): Promise<UserDocument> {
+    const user = await this.userModel.findById(userId);
+    assertUserFound(user);
+    // Remove old image from Cloudinary if exists
+    if (user.profile?.profileImagePublicId) {
+      await this.cloudinaryService.deleteImage(user.profile.profileImagePublicId);
+    }
+    // Upload new image
+    const uploadResult: any = await this.cloudinaryService.uploadImage(file);
+    user.profile = {
+      ...user.profile,
+      avatarUrl: uploadResult.secure_url,
+      profileImagePublicId: uploadResult.public_id,
+    };
+    await user.save();
+    return user;
   }
 }

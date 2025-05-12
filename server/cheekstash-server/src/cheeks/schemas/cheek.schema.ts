@@ -11,11 +11,11 @@ export class Cheeks {
   @Prop()
   description: string;
 
-  @Prop({ type: [String], default: [] })
-  tags: string[];
+  @Prop({ type: [{ type: Types.ObjectId, ref: 'Tag' }], default: [], index: true })
+  tagIds: Types.ObjectId[]; 
 
-  @Prop({ required: true })
-  category: string;
+  @Prop({ required: true, type: Types.ObjectId, ref: 'Category', index: true })
+  categoryId: Types.ObjectId;
 
   @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
   owner: Types.ObjectId;

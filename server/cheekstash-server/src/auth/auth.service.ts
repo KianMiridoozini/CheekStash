@@ -1,10 +1,15 @@
-import { Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { UsersService } from '../users/users.service';
 import { LoginUserDto } from '../users/dto/login-user.dto';
 import { ChangePasswordDto } from '../users/dto/change-password.dto';
 import { UserDocument } from '../users/schemas/user.schema';
+import { assertUserFound } from '../common/guards/user-check.util';
 
 @Injectable()
 export class AuthService {
@@ -17,10 +22,8 @@ export class AuthService {
    * Validate user credentials.
    */
   async validateUser(email: string, password: string): Promise<UserDocument> {
-    const user = await this.usersService.findByEmail(email);
-    if (!user) {
-      throw new NotFoundException('User not found');
-    }
+    const user = await this.usersService.findByEmail(email, true);
+    assertUserFound(user);    
     const isValid = await bcrypt.compare(password, user.passwordHash);
     if (!isValid) {
       throw new UnauthorizedException('Invalid credentials');
@@ -31,11 +34,16 @@ export class AuthService {
   /**
    * Login: Accepts a user document and returns a JWT token.
    */
-  async login(user: UserDocument): Promise<{ token: string; username: string }> {
-    const token = this.jwtService.sign({ id: user._id });
+  async login(
+    user: UserDocument,
+  ): Promise<{ token: string; username: string }> {
+    const token = this.jwtService.sign({
+      id: user._id,
+      username: user.username,
+      role: user.role,
+    });
     return { token, username: user.username };
   }
-  
 
   async changePassword(
     userId: string,
@@ -48,6 +56,10 @@ export class AuthService {
     requester: { id: string; role: string },
     confirmPassword: string,
   ): Promise<{ message: string }> {
-    return this.usersService.deleteUser(requester.id, confirmPassword, requester);
+    return this.usersService.deleteUser(
+      requester.id,
+      confirmPassword,
+      requester,
+    );
   }
 }

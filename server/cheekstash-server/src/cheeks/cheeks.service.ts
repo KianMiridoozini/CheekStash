@@ -2,50 +2,85 @@ import {
   Injectable,
   NotFoundException,
   ForbiddenException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { Cheeks, CheeksDocument } from './schemas/cheeks.schema';
+import { Cheeks, CheeksDocument } from './schemas/cheek.schema';
 import { CheeksDto } from './dto/cheeks.dto';
 import { UpdateCheeksDto } from './dto/update-cheeks.dto';
+import { CategoriesService } from '../categories/categories.service'; 
+import { TagsService } from '../tags/tags.service'; 
 
 @Injectable()
 export class CheeksService {
   constructor(
     @InjectModel(Cheeks.name)
     private CheeksModel: Model<CheeksDocument>,
+    private readonly categoriesService: CategoriesService, 
+    private readonly tagsService: TagsService, 
   ) {}
 
   /**
    * Create a new Cheeks
    */
   async createCheeks(
-    CheeksDto: CheeksDto,
+    cheeksDto: CheeksDto,
     ownerId: string,
   ): Promise<CheeksDocument> {
+    // 1. Validate categoryId
+    await this.categoriesService.findOne(cheeksDto.categoryId); // Throws NotFoundException if not found
+
+    // 2. Process tagNames
+    let tagIds: Types.ObjectId[] = [];
+    if (cheeksDto.tagNames && cheeksDto.tagNames.length > 0) {
+      const tagDocuments = await this.tagsService.findOrCreateTags(cheeksDto.tagNames);
+      tagIds = tagDocuments.map(tag => tag._id as Types.ObjectId); // Assert type here
+      // Increment usage count for each tag
+      for (const tag of tagDocuments) {
+        await this.tagsService.updateTagUsageCount((tag._id as Types.ObjectId).toString(), 1); // Assert type here
+      }
+    }
+
     const newCheeks = new this.CheeksModel({
-      ...CheeksDto,
+      ...cheeksDto,
+      tagIds: tagIds, 
       owner: ownerId,
     });
-    return newCheeks.save();
+    
+    try {
+      const savedCheek = await newCheeks.save();
+      return savedCheek.populate([
+        { path: 'categoryId' },
+        { path: 'tagIds' },
+      ]);
+    } catch (error) {
+      throw new InternalServerErrorException('Error saving new Cheeks: ' + error.message);
+    }
   }
 
   /**
    * Get All Cheekss
    */
   async getCheeks(): Promise<CheeksDocument[]> {
-    return this.CheeksModel.find().exec();
+    return this.CheeksModel.find()
+      .populate('categoryId')
+      .populate('tagIds')
+      .exec();
   }
 
   /**
    * Get a Cheeks by ID
    */
   async getCheeksById(id: string): Promise<CheeksDocument> {
-    const Cheeks = await this.CheeksModel.findById(id).exec();
-    if (!Cheeks) {
+    const cheek = await this.CheeksModel.findById(id)
+      .populate('categoryId')
+      .populate('tagIds')
+      .exec();
+    if (!cheek) {
       throw new NotFoundException('Cheeks not found');
     }
-    return Cheeks;
+    return cheek;
   }
 
   /**
@@ -53,33 +88,69 @@ export class CheeksService {
    */
   async updateCheeks(
     id: string,
-    updateDto: Partial<CheeksDto>,
+    updateDto: UpdateCheeksDto,
     userId: string,
   ): Promise<CheeksDocument> {
-    const Cheeks = await this.CheeksModel.findById(id);
-    if (!Cheeks) {
+    const originalCheek = await this.CheeksModel.findById(id);
+    if (!originalCheek) {
       throw new NotFoundException('Cheeks not found');
     }
-    if (Cheeks.owner.toString() !== userId) {
+    if (originalCheek.owner.toString() !== userId) {
       throw new ForbiddenException(
         'You are not allowed to update this Cheeks',
       );
     }
 
-    /**
-     * Update the Cheeks with the provided data
-     */
-    const updated = await this.CheeksModel.findOneAndUpdate(
+    // 1. Validate categoryId if it's being updated
+    if (updateDto.categoryId && updateDto.categoryId !== originalCheek.categoryId.toString()) {
+      await this.categoriesService.findOne(updateDto.categoryId); // Throws if not found
+    }
+
+    // 2. Handle tag updates
+    const originalTagIds = originalCheek.tagIds.map(tagId => tagId.toString());
+    let finalTagIds: Types.ObjectId[] | undefined = undefined; // Use undefined to signify no change unless DTO specifies
+
+    if (updateDto.tagNames !== undefined) { // Check if tagNames is explicitly provided (even if empty array)
+      const newTagDocuments = await this.tagsService.findOrCreateTags(updateDto.tagNames || []);
+      const newTagIds = newTagDocuments.map(tag => (tag._id as Types.ObjectId).toString()); // Assert type here
+      finalTagIds = newTagDocuments.map(tag => tag._id as Types.ObjectId); // Assert type here
+
+      const tagsToAdd = newTagIds.filter(tagId => !originalTagIds.includes(tagId));
+      const tagsToRemove = originalTagIds.filter(tagId => !newTagIds.includes(tagId));
+
+      for (const tagId of tagsToAdd) {
+        await this.tagsService.updateTagUsageCount(tagId, 1);
+      }
+      for (const tagId of tagsToRemove) {
+        await this.tagsService.updateTagUsageCount(tagId, -1);
+      }
+    }
+    
+    // Prepare the update payload
+    // Explicitly remove tagNames from updateDto as we are handling it via tagIds
+    const { tagNames, ...restOfUpdateDto } = updateDto;
+    const updatePayload: any = { ...restOfUpdateDto };
+    if (finalTagIds !== undefined) {
+      updatePayload.tagIds = finalTagIds;
+    }
+
+
+    const updatedCheek = await this.CheeksModel.findOneAndUpdate(
       { _id: id, owner: userId },
-      updateDto,
+      updatePayload,
       { new: true, runValidators: true },
     );
-    if (!updated) {
+
+    if (!updatedCheek) {
       throw new NotFoundException(
-        'Cheeks not found or you are not allowed to update it',
+        'Cheeks not found or update failed post-authorization',
       );
     }
-    return updated;
+
+    return updatedCheek.populate([
+      { path: 'categoryId' },
+      { path: 'tagIds' },
+    ]);
   }
 
   /**
@@ -89,19 +160,22 @@ export class CheeksService {
     id: string,
     userId: string,
   ): Promise<{ message: string }> {
-    // First, retrieve the Cheeks by ID
-    const Cheeks = await this.CheeksModel.findById(id);
-    if (!Cheeks) {
+    const cheek = await this.CheeksModel.findById(id);
+    if (!cheek) {
       throw new NotFoundException('Cheeks not found');
     }
-    // Check if the Cheeks's owner matches the requesting user's ID
-    if (Cheeks.owner.toString() !== userId) {
+    if (cheek.owner.toString() !== userId) {
       throw new ForbiddenException(
         'You are not allowed to delete this Cheeks',
       );
     }
 
-    // If the check passes, delete the Cheeks
+    if (cheek.tagIds && cheek.tagIds.length > 0) {
+      for (const tagId of cheek.tagIds) {
+        await this.tagsService.updateTagUsageCount(tagId.toString(), -1);
+      }
+    }
+
     await this.CheeksModel.findByIdAndDelete(id);
     return { message: 'Cheeks deleted successfully' };
   }
