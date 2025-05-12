@@ -1,12 +1,7 @@
+import '@angular/compiler'; // Add this line for JIT compilation
 import { bootstrapApplication } from '@angular/platform-browser';
 import { AppComponent } from './app/app.component';
-import { provideRouter } from '@angular/router';
-import { appRoutes } from './app/app.routes';
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { appConfig } from './app/app.config'; // Import appConfig
 
-bootstrapApplication(AppComponent, {
-  providers: [
-    provideRouter(appRoutes),
-    provideHttpClient(withInterceptorsFromDi()),
-  ]
-}).catch(err => console.error(err));
+bootstrapApplication(AppComponent, appConfig) // Use appConfig here
+  .catch(err => console.error(err));
