@@ -10,13 +10,14 @@ import { catchError, finalize, of, switchMap, tap, Observable } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ChangePasswordModalComponent } from '../../auth/change-password-modal/change-password-modal.component';
 import { DeleteAccountModalComponent } from '../../auth/delete-account-modal/delete-account-modal.component';
+import { LoadingIndicatorComponent } from '../../shared/components/loading-indicator/loading-indicator.component'; // Added
 
 @Component({
   selector: 'app-profile',
   templateUrl: './profile.component.html',
   styleUrls: ['./profile.component.css'],
   standalone: true,
-  imports: [CommonModule, RouterModule, ChangePasswordModalComponent, DeleteAccountModalComponent],
+  imports: [CommonModule, RouterModule, ChangePasswordModalComponent, DeleteAccountModalComponent, LoadingIndicatorComponent], // Added LoadingIndicatorComponent
   changeDetection: ChangeDetectionStrategy.OnPush
 })
 export class ProfileComponent implements OnInit {

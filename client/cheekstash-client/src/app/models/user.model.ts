@@ -36,3 +36,8 @@ export interface ChangePasswordPayload {
 export interface ConfirmPasswordPayload {
     password: string;
 }
+
+// Type guard function to check if a value is a User object
+export function isUser(value: any): value is User {
+    return !!value && typeof value === 'object' && 'username' in value && 'id' in value;
+}
