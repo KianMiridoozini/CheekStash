@@ -5,13 +5,13 @@ import { CommonModule } from '@angular/common';
 import { CheeksService } from '../cheeks.service';
 import { CategoriesService } from '../../categories/categories.service';
 import { UsersService } from '../../users/users.service';
-import { TagsService } from '../../tags/tags.service'; // Added TagsService
+import { TagsService } from '../../tags/tags.service';
 import { Category } from '../../models/category.model';
 import { CreateCheekPayload, UpdateCheekPayload, Link, Cheek } from '../../models/cheek.model';
 import { Tag } from '../../models/tag.model';
 import { LoadingIndicatorComponent } from '../../shared/components/loading-indicator/loading-indicator.component';
 import { switchMap, catchError, tap, map } from 'rxjs/operators';
-import { of, forkJoin } from 'rxjs';
+import { of, forkJoin, Observable } from 'rxjs';
 
 @Component({
   selector: 'app-cheek-form',
@@ -35,7 +35,7 @@ export class CheekFormComponent implements OnInit {
     private cheeksService: CheeksService,
     private categoriesService: CategoriesService,
     private usersService: UsersService,
-    private tagsService: TagsService, // Injected TagsService
+    private tagsService: TagsService,
     private router: Router,
     private route: ActivatedRoute
   ) {
@@ -43,7 +43,7 @@ export class CheekFormComponent implements OnInit {
       title: ['', [Validators.required, Validators.minLength(3)]],
       description: [''],
       categoryId: ['', Validators.required],
-      tagNames: [''], // Handled as a comma-separated string
+      tagNames: [''],
       isPublic: [true, Validators.required],
       links: this.fb.array([], [Validators.required, Validators.minLength(2)])
     });
@@ -61,13 +61,13 @@ export class CheekFormComponent implements OnInit {
           return this.initializeFormForEditMode(username, cheekSlug);
         } else {
           this.initializeFormForCreateMode();
-          return of(null); // Ensure the outer observable chain completes
+          return of(null);
         }
       })
     ).subscribe();
   }
 
-  private initializeFormForEditMode(username: string, cheekSlug: string) {
+  private initializeFormForEditMode(username: string, cheekSlug: string): Observable<Cheek | null> {
     this.isEditMode = true;
     this.pageTitle = 'Edit Cheek';
     this.isLoading = true;
@@ -81,36 +81,28 @@ export class CheekFormComponent implements OnInit {
         }
         this.currentCheekId = cheekData._id;
 
-        // Corrected tag logic, based on user's active file:
-        if (cheekData.tags && cheekData.tags.length > 0 &&
-            cheekData.tags.every(tag => typeof tag === 'object' && tag !== null && 'name' in tag)) {
-            // Tags are already Tag[]
-            return of(cheekData);
-        } else if (cheekData.tagIds && cheekData.tagIds.length > 0) {
-            // Fetch tags using tagIds
-            const tagObservables = cheekData.tagIds.map(tagId =>
-                this.tagsService.getTagById(tagId).pipe(
-                    catchError(err => {
-                        console.warn(`Failed to fetch tag with ID ${tagId}:`, err);
-                        return of(null); // Return null for this tag if fetch fails
-                    })
-                )
-            );
-            return forkJoin(tagObservables).pipe(
-                map(fetchedTags => {
-                    cheekData.tags = fetchedTags.filter(tag => tag !== null) as Tag[];
-                    return cheekData;
-                }),
-                catchError(err => {
-                    console.error('Error fetching one or more tags:', err);
-                    // Proceed with cheekData, tags might be partially populated or empty
-                    return of(cheekData);
-                })
-            );
+        if (cheekData.tagIds && cheekData.tagIds.length > 0 && (!cheekData.tags || cheekData.tags.length === 0)) {
+          const tagObservables = cheekData.tagIds.map(tagId =>
+            this.tagsService.getTagById(tagId).pipe(
+              catchError(err => {
+                console.warn(`Failed to fetch tag with ID ${tagId}:`, err);
+                return of(null);
+              })
+            )
+          );
+          return forkJoin(tagObservables).pipe(
+            map(fetchedTags => {
+              cheekData.tags = fetchedTags.filter(tag => tag !== null) as Tag[];
+              return cheekData;
+            }),
+            catchError(err => {
+              console.error('Error fetching one or more tags:', err);
+              return of(cheekData);
+            })
+          );
         } else {
-            // No tags or tagIds to process, or tags are in an unexpected format
-            cheekData.tags = [];
-            return of(cheekData);
+          cheekData.tags = cheekData.tags || [];
+          return of(cheekData);
         }
       }),
       tap(finalCheekData => {
@@ -118,8 +110,8 @@ export class CheekFormComponent implements OnInit {
         if (finalCheekData) {
           this.populateForm(finalCheekData);
         } else {
-          if (!this.error) { // If no specific error was set during tag/cheek fetching
-              this.error = 'Failed to process cheek data for editing.';
+          if (!this.error) {
+            this.error = 'Failed to process cheek data for editing.';
           }
         }
       }),
@@ -165,16 +157,16 @@ export class CheekFormComponent implements OnInit {
       isPublic: cheekData.isPublic
     });
 
-    this.linksFormArray.clear();
+    const linksArray = this.cheekForm.get('links') as FormArray;
+    linksArray.clear();
     if (cheekData.links && cheekData.links.length > 0) {
       cheekData.links.forEach(link => {
-        this.linksFormArray.push(this.createLinkFormGroupWithValue(link));
+        linksArray.push(this.createLinkFormGroupWithValue(link));
       });
     }
-    while (this.linksFormArray.length < 2) {
+    while (linksArray.length < 2) {
       this.addLinkField();
     }
-    this.isLoading = false;
   }
 
   get linksFormArray(): FormArray {
@@ -224,7 +216,9 @@ export class CheekFormComponent implements OnInit {
 
   private buildCheekPayload(): CreateCheekPayload | UpdateCheekPayload {
     const formValue = this.cheekForm.value;
-    const tagNamesArray = formValue.tagNames ? formValue.tagNames.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag) : [];
+    const tagNamesArray = formValue.tagNames 
+      ? formValue.tagNames.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag) 
+      : [];
     const linksPayload = formValue.links.map((link: Link, index: number) => ({ ...link, order: index }));
 
     return {
@@ -287,7 +281,7 @@ export class CheekFormComponent implements OnInit {
 
   public formatLinkUrl(url: string | null | undefined): string {
     if (!url) {
-      return '#'; // Return a non-navigable link if URL is absent
+      return '#';
     }
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;

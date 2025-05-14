@@ -44,6 +44,10 @@ export class CheeksService {
     return this.http.get<Cheek[]>(`${this.apiUrl}/user/${userId}`);
   }
 
+  updateCheekVisibility(cheekId: string, payload: { isPublic: boolean }): Observable<Cheek> {
+    return this.http.patch<Cheek>(`${this.apiUrl}/${cheekId}/visibility`, payload);
+  }
+
   getCheeksByCategoryId(categoryId: string): Observable<Cheek[]> {
     return this.http.get<Cheek[]>(`${this.apiUrl}/category/${categoryId}`);
   }

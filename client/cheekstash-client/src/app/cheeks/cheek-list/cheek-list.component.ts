@@ -4,17 +4,17 @@ import { RouterModule } from '@angular/router';
 import { Cheek } from '../../models/cheek.model';
 import { CheeksService } from '../cheeks.service';
 import { AuthService } from '../../auth/auth.service';
-import { User } from '../../models/user.model'; // Import User model
-import { TagsService } from '../../tags/tags.service'; // Added
-import { Tag } from '../../models/tag.model'; // Added
-import { forkJoin, of, Observable } from 'rxjs'; // Added
-import { map, catchError, switchMap } from 'rxjs/operators'; // Added switchMap
-import { LoadingIndicatorComponent } from '../../shared/components/loading-indicator/loading-indicator.component'; // Added
+import { User } from '../../models/user.model';
+import { TagsService } from '../../tags/tags.service';
+import { Tag } from '../../models/tag.model';
+import { forkJoin, of, Observable } from 'rxjs';
+import { map, catchError, switchMap, tap } from 'rxjs/operators';
+import { LoadingIndicatorComponent } from '../../shared/components/loading-indicator/loading-indicator.component';
 
 @Component({
   selector: 'app-cheek-list',
   standalone: true,
-  imports: [CommonModule, RouterModule, LoadingIndicatorComponent], // Added LoadingIndicatorComponent
+  imports: [CommonModule, RouterModule, LoadingIndicatorComponent],
   templateUrl: './cheek-list.component.html',
   styleUrl: './cheek-list.component.css'
 })
@@ -27,13 +27,13 @@ export class CheekListComponent implements OnInit {
   constructor(
     private cheeksService: CheeksService,
     private authService: AuthService,
-    private tagsService: TagsService // Added
-  ) {}
+    private tagsService: TagsService
+  ) { }
 
   ngOnInit(): void {
     const currentUser = this.authService.currentUserSignal();
     if (currentUser) {
-      this.currentUserId = currentUser.id; 
+      this.currentUserId = currentUser.id;
     }
     this.loadCheeks();
   }
@@ -43,36 +43,32 @@ export class CheekListComponent implements OnInit {
     this.error = null;
 
     this.cheeksService.getAllCheeks().pipe(
-      switchMap(cheeksData => {
-        if (!cheeksData || cheeksData.length === 0) {
-          return of([]); 
+      map(cheeksData => cheeksData.filter(cheek => cheek.isPublic)),
+      switchMap(filteredCheeksData => {
+        if (!filteredCheeksData || filteredCheeksData.length === 0) {
+          return of([]);
         }
-        // For each cheek, create an observable that fetches its tags
-        const cheeksWithTagsObservables = cheeksData.map(cheek =>
+        const cheeksWithTagsObservables = filteredCheeksData.map(cheek =>
           this.fetchTagsForCheek(cheek)
         );
-        return forkJoin(cheeksWithTagsObservables); // Execute all tag-fetching observables
+        return forkJoin(cheeksWithTagsObservables);
       }),
       catchError(err => {
         console.error('Error fetching cheeks or their tags:', err);
         this.error = 'Failed to load cheeks data. Please try again later.';
         this.isLoading = false;
-        return of([]); // Return an empty array on error to prevent further processing issues
+        return of([]);
       })
     ).subscribe({
       next: (processedCheeks) => {
         this.cheeks = processedCheeks;
         this.isLoading = false;
       },
-      // The main error handling is now in the catchError operator above
-      // but we can keep a final error handler here if needed for the subscription itself.
       error: (err) => {
-        // This error handler would catch errors not caught by the catchError in the pipe,
-        // or errors that occur during the final processing in the `next` callback.
         console.error('Unhandled error in loadCheeks subscription:', err);
-        this.error = this.error || 'An unexpected error occurred.'; // Preserve earlier error if set
+        this.error = this.error || 'An unexpected error occurred.';
         this.isLoading = false;
-        this.cheeks = []; // Clear cheeks on final error
+        this.cheeks = [];
       }
     });
   }
@@ -94,17 +90,15 @@ export class CheekListComponent implements OnInit {
         })
       );
     } else {
-      cheek.tags = []; // Ensure tags property exists even if no tagIds
-      return of(cheek); 
+      cheek.tags = [];
+      return of(cheek);
     }
   }
 
-  // Type guard function to check if a value is a User object
   isUser(owner: any): owner is User {
     return !!owner && typeof owner === 'object' && 'username' in owner;
   }
 
-  // Helper method to safely get owner's username
   getOwnerUsername(owner: any): string {
     if (this.isUser(owner)) {
       return owner.username;
@@ -112,7 +106,6 @@ export class CheekListComponent implements OnInit {
     return typeof owner === 'string' ? owner : 'Unknown';
   }
 
-  // Helper method to safely get owner's ID
   getOwnerId(owner: any): string {
     if (this.isUser(owner)) {
       return owner.id;

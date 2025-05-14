@@ -158,7 +158,6 @@ export class ProfileComponent implements OnInit {
     return !!owner && typeof owner === 'object' && 'username' in owner;
   }
 
-
   getOwnerUsername(owner: User | string): string {
     if (this.isUser(owner)) {
       return owner.username;
@@ -168,6 +167,35 @@ export class ProfileComponent implements OnInit {
       return pUser.username;
     }
     return 'Unknown';
+  }
+
+  toggleCheekVisibility(cheek: Cheek): void {
+    if (!cheek || !cheek._id) {
+      console.error('Cannot toggle visibility: Cheek ID is missing.');
+      this.error.set('Could not update cheek visibility: Cheek ID missing.');
+      return;
+    }
+    const newVisibility = !cheek.isPublic;
+    const originalCheeks = [...this.userCheeks()];
+    this.userCheeks.update(cheeks => 
+      cheeks.map(c => c._id === cheek._id ? { ...c, isPublic: newVisibility } : c)
+    );
+    this.cheeksService.updateCheekVisibility(cheek._id, { isPublic: newVisibility })
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        tap(updatedCheek => {
+          this.userCheeks.update(cheeks => 
+            cheeks.map(c => c._id === updatedCheek._id ? updatedCheek : c)
+          );
+        }),
+        catchError(err => {
+          console.error('Error updating cheek visibility:', err);
+          this.userCheeks.set(originalCheeks);
+          this.error.set(`Failed to update visibility for "${cheek.title}". Please try again.`);
+          return of(null);
+        })
+      )
+      .subscribe();
   }
 
   // --- Modal Control Methods ---

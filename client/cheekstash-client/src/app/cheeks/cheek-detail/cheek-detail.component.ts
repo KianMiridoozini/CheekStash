@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core'; // Import ViewChild
 import { ActivatedRoute, RouterLink, Router, ParamMap } from '@angular/router'; // Import ParamMap
 import { CommonModule } from '@angular/common';
 import { Subscription, switchMap, forkJoin, of, Observable } from 'rxjs';
@@ -12,15 +12,20 @@ import { TagsService } from '../../tags/tags.service';
 import { LoadingIndicatorComponent } from '../../shared/components/loading-indicator/loading-indicator.component';
 import { AuthService } from '../../auth/auth.service';
 import { User } from '../../models/user.model';
+import { ReviewListComponent } from '../../reviews/review-list/review-list.component';
+import { ReviewFormComponent } from '../../reviews/review-form/review-form.component';
+import { Review } from '../../models/review.model';
 
 @Component({
   selector: 'app-cheek-detail',
   standalone: true,
-  imports: [CommonModule, RouterLink, LoadingIndicatorComponent],
+  imports: [CommonModule, RouterLink, LoadingIndicatorComponent, ReviewListComponent, ReviewFormComponent],
   templateUrl: './cheek-detail.component.html',
   styleUrls: ['./cheek-detail.component.css']
 })
 export class CheekDetailComponent implements OnInit, OnDestroy {
+  @ViewChild(ReviewListComponent) reviewListComponentRef!: ReviewListComponent;
+
   cheek: Cheek | null = null;
   ownerUsername: string = 'Loading...';
   isOwnerUsernameLinkable: boolean = false;
@@ -28,9 +33,12 @@ export class CheekDetailComponent implements OnInit, OnDestroy {
   isLoading: boolean = true;
   error: string | null = null;
   isOwner: boolean = false;
-  showDeleteConfirmation: boolean = false; 
+  showDeleteConfirmation: boolean = false;
+  canAddReview: boolean = false; // Will be determined by login status and whether user has already reviewed
+  showAddReviewForm: boolean = false;
+  hasUserReviewedThisCheek: boolean = false; // New property
   private routeSub: Subscription | undefined;
-  private currentUser: User | null = null;
+  currentUser: User | null = null;
 
   constructor(
     private route: ActivatedRoute,
@@ -39,7 +47,7 @@ export class CheekDetailComponent implements OnInit, OnDestroy {
     private tagsService: TagsService,
     private authService: AuthService,
     private router: Router
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.isLoading = true;
@@ -49,11 +57,13 @@ export class CheekDetailComponent implements OnInit, OnDestroy {
       switchMap(params => this.loadCheekDetails(params))
     ).subscribe({
       next: (processedCheek) => {
+        // isLoading is set within processCheekData or handleLoadingError
         if (this.cheek || this.error) {
           this.isLoading = false;
         } else if (!processedCheek) {
           this.isLoading = false;
         }
+        this.updateCanAddReviewStatus();
       },
       error: (err) => {
         console.error('Error in route parameter subscription:', err);
@@ -72,6 +82,7 @@ export class CheekDetailComponent implements OnInit, OnDestroy {
       this.isLoading = false;
       this.ownerUsername = 'N/A';
       this.isOwnerUsernameLinkable = false;
+      this.canAddReview = false;
       return of(null);
     }
 
@@ -94,18 +105,52 @@ export class CheekDetailComponent implements OnInit, OnDestroy {
       this.isLoading = false;
       this.ownerUsername = 'N/A';
       this.isOwnerUsernameLinkable = false;
+      this.hasUserReviewedThisCheek = false;
+      this.updateCanAddReviewStatus();
       return of(null);
     }
 
     this.cheek = cheekData;
-    this.checkIfOwner();
-    this.determineOwnerDisplayDetails(this.cheek);
-
+    // Fetch and assign tags if only tagIds are present
     return this.fetchAndAssignTags(this.cheek).pipe(
       map(cheekWithTags => {
-        return cheekWithTags;
+        this.cheek = cheekWithTags; // Update the component's cheek property
+        this.checkIfOwner();
+        this.determineOwnerDisplayDetails(this.cheek);
+        this.updateCanAddReviewStatus();
+        this.isLoading = false; // Set loading to false after all processing
+        return this.cheek;
+      }),
+      catchError(err => {
+        // Handle error from fetchAndAssignTags if necessary, or let global handler catch it
+        console.error('Error processing cheek data after fetching tags:', err);
+        this.error = 'Failed to process cheek details.';
+        this.isLoading = false;
+        return of(null);
       })
     );
+  }
+
+  private fetchAndAssignTags(cheek: Cheek): Observable<Cheek> {
+    if (cheek.tagIds && cheek.tagIds.length > 0 && (!cheek.tags || cheek.tags.length === 0)) {
+      const tagObservables = cheek.tagIds.map(tagId =>
+        this.tagsService.getTagById(tagId).pipe(
+          catchError(err => {
+            console.error(`Error fetching tag ${tagId}:`, err);
+            return of(null);
+          })
+        )
+      );
+      return forkJoin(tagObservables).pipe(
+        map(tags => {
+          cheek.tags = tags.filter(tag => tag !== null) as Tag[];
+          return cheek;
+        })
+      );
+    } else {
+      cheek.tags = cheek.tags || []; // Ensure tags is an array even if no tagIds or already populated
+      return of(cheek);
+    }
   }
 
   private determineOwnerDisplayDetails(cheek: Cheek): void {
@@ -124,47 +169,61 @@ export class CheekDetailComponent implements OnInit, OnDestroy {
     }
   }
 
-  private fetchAndAssignTags(cheek: Cheek): Observable<Cheek> {
-    if (cheek && cheek.tagIds && cheek.tagIds.length > 0) {
-      const tagObservables = cheek.tagIds.map(tagId =>
-        this.tagsService.getTagById(tagId).pipe(
-          catchError(err => {
-            console.error(`Error fetching tag ${tagId}:`, err);
-            return of(null);
-          })
-        )
-      );
-      return forkJoin(tagObservables).pipe(
-        map(tags => {
-          cheek.tags = tags.filter(tag => tag !== null) as Tag[];
-          return cheek;
-        })
-      );
-    } else {
-      cheek.tags = [];
-      return of(cheek);
-    }
-  }
-
   private handleLoadingError(err: any): Observable<null> {
     console.error('Error fetching cheek details or related data:', err);
     this.error = `Failed to load cheek: ${err.error?.message || err.message || 'Server error'}`;
     this.isLoading = false;
     this.ownerUsername = 'N/A';
     this.isOwnerUsernameLinkable = false;
+    this.canAddReview = false;
     return of(null);
+  }
+
+  handleUserHasReviewed(hasReviewed: boolean): void {
+    this.hasUserReviewedThisCheek = hasReviewed;
+    this.updateCanAddReviewStatus();
+  }
+
+  private updateCanAddReviewStatus(): void {
+    this.canAddReview = !!this.currentUser && !!this.cheek && !this.hasUserReviewedThisCheek;
+  }
+
+  toggleAddReviewForm(): void {
+    this.showAddReviewForm = !this.showAddReviewForm;
+  }
+
+  handleReviewSubmitted(review: Review): void {
+    console.log('Review submitted in detail component:', review);
+    this.showAddReviewForm = false;
+    // Refresh the review list, which in turn will emit 'userHasReviewed'
+    // and update 'canAddReview' status via handleUserHasReviewed.
+    if (this.reviewListComponentRef) {
+      this.reviewListComponentRef.refreshReviews();
+    }
+  }
+
+  handleReviewFormClosed(): void {
+    this.showAddReviewForm = false;
+  }
+
+  handleReviewUpdated(review: Review): void {
+    console.log('Review updated in detail component:', review);
+  }
+
+  handleReviewDeleted(reviewId: string): void {
+    console.log('Review deleted in detail component, ID:', reviewId);
   }
 
   confirmDeleteCheek(): void {
     if (!this.cheek || !this.cheek._id) {
       console.error('Cheek data is missing, cannot initiate delete confirmation.');
-      this.error = 'Could not initiate delete: data missing.'; 
+      this.error = 'Could not initiate delete: data missing.';
       return;
     }
-    this.showDeleteConfirmation = true; 
+    this.showDeleteConfirmation = true;
   }
 
-  proceedWithDelete(): void { 
+  proceedWithDelete(): void {
     if (!this.cheek || !this.cheek._id) {
       console.error('Cheek data is missing, cannot delete.');
       this.error = 'Could not delete cheek: data missing.';
@@ -221,7 +280,7 @@ export class CheekDetailComponent implements OnInit, OnDestroy {
     }
   }
 
-  public formatLinkUrl(url: string ): string {
+  public formatLinkUrl(url: string): string {
     if (url.startsWith('http://') || url.startsWith('https://')) {
       return url;
     }

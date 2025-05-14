@@ -2,10 +2,10 @@
 export interface Review {
     _id: string;
     cheekId: string;
-    userId: string;
+    user: { _id: string; username: string; };
     rating: number;
     review?: string;
-    createdAt?: string;
+    createdAt: string; 
     updatedAt?: string;
 }
 

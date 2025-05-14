@@ -1,0 +1,11 @@
+.star-rating button {
+    transition: color 0.2s ease-in-out;
+}
+
+/* Basic styling for the form, can be expanded */
+form {
+  max-width: 600px; /* Or your preferred max-width */
+  /* margin: auto; /* Optional: centers the form if it's narrower than its container */
+}
+
+/* Add more specific styles as needed */

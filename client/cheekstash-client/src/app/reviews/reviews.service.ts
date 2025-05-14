@@ -13,7 +13,7 @@ export class ReviewsService {
   constructor(private http: HttpClient) { }
 
   getReviewsForCheek(cheekId: string): Observable<Review[]> {
-    return this.http.get<Review[]>(`${this.apiUrl}/cheek/${cheekId}`);
+    return this.http.get<Review[]>(`${this.apiUrl}/${cheekId}`);
   }
 
   getReviewById(reviewId: string): Observable<Review> {
@@ -29,7 +29,7 @@ export class ReviewsService {
   }
 
   updateReview(reviewId: string, payload: UpdateReviewPayload): Observable<Review> {
-    return this.http.patch<Review>(`${this.apiUrl}/${reviewId}`, payload);
+    return this.http.put<Review>(`${this.apiUrl}/${reviewId}`, payload);
   }
 
   deleteReview(reviewId: string): Observable<any> {
