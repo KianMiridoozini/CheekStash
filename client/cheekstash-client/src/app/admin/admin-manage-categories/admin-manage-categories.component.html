@@ -1,0 +1,137 @@
+<div class="container mx-auto p-4">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-primary">Manage Categories</h2>
+        <button routerLink="../" class="btn btn-sm btn-outline btn-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                stroke="currentColor" class="w-4 h-4 mr-2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+            Back to Admin
+        </button>
+    </div>
+
+    <app-loading-indicator [message]="'Loading categories...'" [size]="'lg'"
+        *ngIf="isLoading && !filteredCategories.length">
+    </app-loading-indicator>
+
+    <div *ngIf="error && !filteredCategories.length" class="alert alert-error shadow-lg mb-6">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{{ error }}</span>
+            <button (click)="loadCategories()" *ngIf="!isLoading" class="btn btn-sm btn-outline ml-4">Try
+                Reloading</button>
+        </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-xl mb-8">
+        <div class="card-body">
+            <h3 class="text-xl font-semibold mb-4">{{ isEditing ? 'Edit Category' : 'Create New Category' }}</h3>
+            <form (ngSubmit)="saveCategory()" #catForm="ngForm" class="space-y-4">
+                <div class="form-control w-full">
+                    <label for="categoryName" class="label">
+                        <span class="label-text">Name:</span>
+                    </label>
+                    <input type="text" id="categoryName" name="categoryName" [(ngModel)]="categoryForm.name" required
+                        minlength="3" #nameField="ngModel" class="input input-bordered w-full"
+                        [class.input-error]="nameField.invalid && (nameField.dirty || nameField.touched)">
+                    <div *ngIf="nameField.invalid && (nameField.dirty || nameField.touched)"
+                        class="text-error text-xs mt-1">
+                        <div *ngIf="nameField.errors?.['required']">Name is required.</div>
+                        <div *ngIf="nameField.errors?.['minlength']">Name must be at least 3 characters long.</div>
+                    </div>
+                </div>
+                <div class="form-control w-full">
+                    <label for="categoryDescription" class="label">
+                        <span class="label-text">Description (Optional):</span>
+                    </label>
+                    <textarea id="categoryDescription" name="categoryDescription" [(ngModel)]="categoryForm.description"
+                        class="textarea textarea-bordered w-full h-24"></textarea>
+                </div>
+
+                <div *ngIf="formError" class="alert alert-warning shadow-lg mt-4">
+                    <div>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span>{{ formError }}</span>
+                    </div>
+                </div>
+
+                <div class="card-actions justify-end space-x-2 mt-6">
+                    <button type="submit" class="btn btn-primary" [disabled]="catForm.invalid || isLoading">{{ isEditing
+                        ? 'Update Category' : 'Create Category' }}</button>
+                    <button type="button" class="btn btn-ghost" (click)="cancelEdit()" *ngIf="isEditing">Cancel
+                        Edit</button>
+                    <button type="button" class="btn btn-outline" (click)="initNewCategoryForm()"
+                        *ngIf="!isEditing">Clear Form / New</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <hr *ngIf="categories.length > 0" class="my-8 border-base-300">
+
+    <!-- Search and Sort Controls -->
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 p-4 bg-base-200 rounded-lg shadow"
+        *ngIf="categories.length > 0">
+        <div class="form-control w-full md:w-1/2">
+            <input type="text" placeholder="Search categories by name or description..."
+                class="input input-bordered w-full" [value]="searchTerm" (input)="onSearchTermChange($event)" />
+        </div>
+        <div class="flex gap-2">
+            <span class="label-text self-center">Sort by:</span>
+            <button class="btn btn-sm btn-outline" (click)="changeSort('name')"
+                [class.btn-active]="sortProperty === 'name'">
+                Name
+                <span *ngIf="sortProperty === 'name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto" *ngIf="filteredCategories.length > 0">
+        <h3 class="text-xl font-semibold mb-4">Existing Categories ({{ filteredCategories.length }})</h3>
+        <app-loading-indicator [message]="'Refreshing categories list...'" [size]="'md'"
+            *ngIf="isLoading && filteredCategories.length">
+        </app-loading-indicator>
+        <table class="table w-full table-zebra shadow-lg">
+            <thead>
+                <tr>
+                    <th (click)="changeSort('name')" class="cursor-pointer hover:bg-base-200">
+                        Name <span *ngIf="sortProperty === 'name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                    </th>
+                    <th>Description</th>
+                    <th>Slug</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let category of filteredCategories" class="hover">
+                    <td><strong>{{ category.name }}</strong></td>
+                    <td>{{ category.description || '-' }}</td>
+                    <td><span class="badge badge-ghost badge-sm">{{ category.slug }}</span></td>
+                    <td class="space-x-2">
+                        <button class="btn btn-sm btn-outline btn-info" (click)="selectCategoryForEdit(category)"
+                            [disabled]="isLoading">Edit</button>
+                        <button class="btn btn-sm btn-outline btn-error" (click)="deleteCategory(category._id)"
+                            [disabled]="isLoading">Delete</button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div *ngIf="!isLoading && !error && categories.length > 0 && filteredCategories.length === 0"
+        class="text-center py-8">
+        <p class="text-lg text-base-content/70">No categories match your search criteria "{{ searchTerm }}".</p>
+    </div>
+
+    <div *ngIf="!isLoading && !error && categories.length === 0" class="text-center py-8">
+        <p class="text-lg text-base-content/70">No categories found. You can create one using the form above.</p>
+    </div>
+</div>
