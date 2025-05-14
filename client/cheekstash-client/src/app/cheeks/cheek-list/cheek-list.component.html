@@ -11,8 +11,28 @@
         </button>
     </div>
 
+    <!-- Cheek Search Component -->
+    <app-cheek-search 
+        [initialFilters]="initialSearchFilters"
+        (searchCriteriaChange)="onSearchFiltersChanged($event)"
+        class="mb-6">
+    </app-cheek-search>
+
+    <!-- Sort Dropdown -->
+    <div class="mb-4 flex justify-end">
+        <select class="select select-bordered select-sm w-full max-w-xs" 
+                (change)="onSortChange($event)" 
+                [ngModel]="currentSortBy">
+            <option value="recent">Most Recent</option>
+            <option value="rating-desc">Rating: High to Low</option>
+            <option value="rating-asc">Rating: Low to High</option>
+            <option value="alpha-asc">Alphabetical: A to Z</option>
+            <option value="alpha-desc">Alphabetical: Z to A</option>
+        </select>
+    </div>
+
     <!-- Loading State -->
-    <app-loading-indicator *ngIf="isLoading && cheeks.length === 0" [message]="'Loading cheeks...'" [size]="'lg'"
+    <app-loading-indicator *ngIf="isLoading && cheeks.length === 0 && !noCheeksFound" [message]="'Loading cheeks...'" [size]="'lg'"
         [fullPageStyle]="true">
     </app-loading-indicator>
 
@@ -22,7 +42,7 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none"
                 viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span>{{ error }}</span>
         </div>
@@ -34,20 +54,20 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none"
                 viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span>{{ error }}</span>
         </div>
     </div>
 
     <!-- No Cheeks Found State -->
-    <div *ngIf="!isLoading && !error && cheeks.length === 0" class="text-center py-10">
-        <p class="text-xl text-base-content/70">No cheeks found at the moment.</p>
-        <p class="text-base-content/50">Why not be the first to share one?</p>
+    <div *ngIf="noCheeksFound && !isLoading && !error" class="text-center py-10">
+        <p class="text-xl text-base-content/70">No cheeks found ಥ_ಥ </p>
+        <p class="text-base-content/50">Why not create yours?</p>
     </div>
 
     <!-- Cheeks Grid -->
-    <div *ngIf="!error && cheeks.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <div *ngIf="!error && !noCheeksFound && cheeks.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <div *ngFor="let cheek of cheeks"
             class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow duration-300">
             <div class="card-body">
@@ -67,16 +87,36 @@
                 <!-- Average Rating Display -->
                 <div *ngIf="cheek.reviewCount !== undefined && cheek.averageRating !== undefined"
                     class="mb-2 flex items-center">
-                    <ng-container *ngFor="let i of [1,2,3,4,5]">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"
-                            [ngClass]="i <= cheek.averageRating! ? 'text-yellow-400' : (i - 0.5 <= cheek.averageRating! ? 'text-yellow-400 opacity-50' : 'text-gray-300')">
-                            <path *ngIf="i - 0.5 <= cheek.averageRating! && i > cheek.averageRating!"
-                                fill-rule="evenodd" clip-rule="evenodd"
-                                d="M10 15.27L16.18 19l-1.64-7.03L20 7.24l-7.19-.61L10 0l-2.81 6.63L0 7.24l5.46 4.73L3.82 19 10 15.27z M10 2.92l1.07 3.29h3.46l-2.8 2.03.36 1.12L10 7.88V2.92z" />
-                            <path *ngIf="!(i - 0.5 <= cheek.averageRating! && i > cheek.averageRating!)"
-                                d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                        </svg>
-                    </ng-container>
+                    <div class="rating rating-sm rating-half pointer-events-none">
+                        <!-- The first input is 'rating-hidden' to allow clearing if it were interactive. For display, it's mostly a convention. -->
+                        <input type="radio" [name]="'rating-' + cheek._id" class="rating-hidden" 
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 0" disabled />
+
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-1 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 0.5" disabled />
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-2 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 1.0" disabled />
+
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-1 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 1.5" disabled />
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-2 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 2.0" disabled />
+
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-1 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 2.5" disabled />
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-2 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 3.0" disabled />
+
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-1 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 3.5" disabled />
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-2 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 4.0" disabled />
+
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-1 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 4.5" disabled />
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-2 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 5.0" disabled />
+                    </div>
                     <span class="ml-2 text-sm text-base-content/70">
                         {{ cheek.averageRating | number:'1.1-1' }} ({{ cheek.reviewCount }} review{{ cheek.reviewCount
                         === 1 ? '' : 's' }})
@@ -133,7 +173,7 @@
                     </span>
                     <ng-container *ngIf="isUser(cheek.owner)">
                         <a [routerLink]="['/cheeks', getOwnerUsername(cheek.owner), cheek.slug]"
-                            class="btn btn-sm btn-outline btn-primary">View Details</a>
+                            class="btn btn-sm btn-outline btn-primary">Spread</a>
                     </ng-container>
                     <ng-container *ngIf="!isUser(cheek.owner)">
                         <button class="btn btn-sm btn-outline btn-disabled">View Details</button> </ng-container>
@@ -141,4 +181,17 @@
             </div>
         </div>
     </div>
+
+    <!-- Load More Button -->
+    <div *ngIf="!isLoading && !allCheeksLoaded && cheeks.length > 0 && totalCheeksFromServer > cheeks.length && !noCheeksFound" class="text-center mt-8 mb-4">
+        <button class="btn btn-primary btn-wide" (click)="onLoadMore()">
+            Load More
+        </button>
+    </div>
+
+    <!-- Loading Indicator for "Load More" -->
+    <app-loading-indicator *ngIf="isLoading && cheeks.length > 0 && !noCheeksFound" [message]="'Loading more cheeks...'" [size]="'md'"
+        [fullPageStyle]="false" class="mt-4 text-center">
+    </app-loading-indicator>
+
 </div>

@@ -47,3 +47,20 @@ export interface UpdateCheekPayload {
     isPublic?: boolean;
     links?: Link[];
 }
+
+export interface CheekQueryParams {
+    searchKeyword?: string;
+    categoryIds?: string[];
+    tagIds?: string[];
+    requestingUserId?: string; 
+    // For URL construction with names, not directly sent to backend API
+    categoryNames?: string[]; 
+    tagNames?: string[];
+    page?: number;
+    limit?: number; 
+}
+
+export interface PaginatedCheeksResponse {
+    cheeks: Cheek[];
+    totalItems: number;
+}

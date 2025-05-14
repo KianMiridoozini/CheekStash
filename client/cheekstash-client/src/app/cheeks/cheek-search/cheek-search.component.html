@@ -1,0 +1,73 @@
+<form class="bg-base-200 p-4 md:p-6 rounded-lg shadow-md mb-6" [formGroup]="searchForm" (ngSubmit)="onSubmit()">
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 items-start">
+        <!-- Search Keyword -->
+        <div class="form-control w-full">
+            <label for="searchKeyword" class="label">
+                <span class="label-text font-medium">Keyword</span>
+            </label>
+            <input id="searchKeyword" type="text" formControlName="searchKeyword"
+                placeholder="Search for Cheeks..." class="input input-bordered w-full">
+        </div>
+
+        <!-- Categories Filter -->
+        <div class="form-control w-full">
+            <label class="label">
+                <span class="label-text font-medium">Categories</span>
+            </label>
+            <div *ngIf="isLoadingCategories" class="text-sm text-base-content/70 italic p-2 border border-base-300 rounded-md h-12 flex items-center justify-center bg-base-100/50">Loading categories...</div>
+            <div *ngIf="!isLoadingCategories && categories.length === 0" class="text-sm text-base-content/70 italic p-2 border border-base-300 rounded-md h-12 flex items-center justify-center bg-base-100/50">No categories available.</div>
+
+            <div *ngIf="!isLoadingCategories && categories.length > 0" class="dropdown w-full" [class.dropdown-open]="isCategoriesDropdownOpen">
+                <div tabindex="0" role="button" class="btn btn-outline border-base-300 w-full justify-start font-normal normal-case h-12" (click)="toggleCategoriesDropdown($event)">
+                    <span class="truncate">{{ getSelectedCategoriesText() }}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-auto transition-transform duration-200 ease-in-out" [class.rotate-180]="isCategoriesDropdownOpen" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.293 9.293a1 1 0 011.414 0L10 12.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <ul *ngIf="isCategoriesDropdownOpen" tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-full mt-1 max-h-60 overflow-y-auto z-10 border border-base-300/50">
+                    <li *ngFor="let category of categories">
+                        <label class="label cursor-pointer py-1 px-2">
+                            <span class="label-text text-sm">{{ category.name }}</span>
+                            <input type="checkbox" class="checkbox checkbox-primary checkbox-sm"
+                                [checked]="isCategorySelected(category._id)"
+                                (change)="onCategoryChange(category._id, $event)">
+                        </label>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Tags Filter -->
+        <div class="form-control w-full">
+            <label class="label">
+                <span class="label-text font-medium">Tags</span>
+            </label>
+            <div *ngIf="isLoadingTags" class="text-sm text-base-content/70 italic p-2 border border-base-300 rounded-md h-12 flex items-center justify-center bg-base-100/50">Loading tags...</div>
+            <div *ngIf="!isLoadingTags && tags.length === 0" class="text-sm text-base-content/70 italic p-2 border border-base-300 rounded-md h-12 flex items-center justify-center bg-base-100/50">No tags available.</div>
+
+            <div *ngIf="!isLoadingTags && tags.length > 0" class="dropdown w-full" [class.dropdown-open]="isTagsDropdownOpen">
+                <div tabindex="0" role="button" class="btn btn-outline border-base-300 w-full justify-start font-normal normal-case h-12" (click)="toggleTagsDropdown($event)">
+                    <span class="truncate">{{ getSelectedTagsText() }}</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ml-auto transition-transform duration-200 ease-in-out" [class.rotate-180]="isTagsDropdownOpen" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M5.293 9.293a1 1 0 011.414 0L10 12.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <ul *ngIf="isTagsDropdownOpen" tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-full mt-1 max-h-60 overflow-y-auto z-10 border border-base-300/50">
+                    <li *ngFor="let tag of tags">
+                        <label class="label cursor-pointer py-1 px-2">
+                            <span class="label-text text-sm">{{ tag.name }}</span>
+                            <input type="checkbox" class="checkbox checkbox-primary checkbox-sm"
+                                [checked]="isTagSelected(tag._id)"
+                                (change)="onTagChange(tag._id, $event)">
+                        </label>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex flex-col sm:flex-row justify-end items-center gap-3 mt-6">
+        <button type="button" class="btn btn-ghost w-full sm:w-auto" (click)="resetFilters()">Reset Filters</button>
+        <button type="submit" class="btn btn-primary w-full sm:w-auto" [disabled]="searchForm.invalid || searchForm.pristine">Search</button>
+    </div>
+</form>
