@@ -23,18 +23,12 @@ export class AuthService {
   currentUserSignal: WritableSignal<User | null> = signal(null);
 
   constructor(private http: HttpClient) {
-    const storedUser = localStorage.getItem(this.userKey);
-    if (storedUser) {
-      this.currentUserSignal.set(JSON.parse(storedUser));
+    if (this.isAuthenticated()) {
+      this.fetchAndStoreUserProfile();
     }
 
     effect(() => {
-      const user = this.currentUserSignal();
-      if (user) {
-        localStorage.setItem(this.userKey, JSON.stringify(user));
-      } else {
-        localStorage.removeItem(this.userKey);
-      }
+      // console.log('Current user from signal (AuthService effect):', this.currentUserSignal());
     });
   }
 
@@ -42,10 +36,10 @@ export class AuthService {
     return this.http.post<LoginResponse>(`${this.apiUrl}/auth/login`, credentials).pipe(
       tap((res: LoginResponse) => {
         localStorage.setItem(this.tokenKey, res.token);
+        localStorage.setItem(this.usernameKey, res.username);
         this.fetchAndStoreUserProfile();
       }),
       catchError(err => {
-        console.error('Login failed', err);
         this.clearUserSession();
         return throwError(() => new Error(err.error?.message || 'Login failed'));
       })
@@ -56,10 +50,9 @@ export class AuthService {
     this.http.get<User>(`${this.apiUrl}/auth/me`).subscribe({
       next: (user) => {
         this.currentUserSignal.set(user);
-        localStorage.setItem(this.usernameKey, user.username);
       },
       error: (err) => {
-        console.error('Failed to fetch user profile', err);
+        console.error('Failed to fetch user profile:', err);
         this.clearUserSession();
       }
     });
@@ -89,17 +82,23 @@ export class AuthService {
     return localStorage.getItem(this.tokenKey);
   }
 
-  getCurrentUser(): Observable<User> {
+  getCurrentUser(): Observable<User | null> {
     const currentUser = this.currentUserSignal();
     if (currentUser) {
       return of(currentUser);
     }
-    const obs = this.http.get<User>(`${this.apiUrl}/auth/me`);
-    obs.subscribe({
-      next: (user) => this.currentUserSignal.set(user),
-      error: () => this.currentUserSignal.set(null)
-    });
-    return obs;
+    if (this.isAuthenticated()) {
+      return this.http.get<User>(`${this.apiUrl}/auth/me`).pipe(
+        tap(user => {
+          this.currentUserSignal.set(user);
+        }),
+        catchError(err => {
+          this.clearUserSession();
+          return throwError(() => new Error('Failed to fetch user profile'));
+        })
+      );
+    }
+    return of(null);
   }
 
   refreshUserProfile(): void {
