@@ -2,5 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
-/* You can add global styles to this file, and also import other style files */
-/* Your existing global styles can go here or in another file */
+
+html {
+    scrollbar-width: thin;
+    scroll-behavior: smooth;
+    overflow-y: scroll;
+}

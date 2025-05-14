@@ -1,1 +1,197 @@
-<p>cheek-list works!</p>
+<div class="container mx-auto p-4 sm:p-6 lg:p-8">
+    <div class="mb-6 flex justify-between items-center">
+        <h1 class="text-3xl font-bold text-base-content">Cheeks</h1>
+        <button class="btn btn-primary" routerLink="/cheeks/create">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd"
+                    d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z"
+                    clip-rule="evenodd" />
+            </svg>
+            Share Cheek
+        </button>
+    </div>
+
+    <!-- Cheek Search Component -->
+    <app-cheek-search 
+        [initialFilters]="initialSearchFilters"
+        (searchCriteriaChange)="onSearchFiltersChanged($event)"
+        class="mb-6">
+    </app-cheek-search>
+
+    <!-- Sort Dropdown -->
+    <div class="mb-4 flex justify-end">
+        <select class="select select-bordered select-sm w-full max-w-xs" 
+                (change)="onSortChange($event)" 
+                [ngModel]="currentSortBy">
+            <option value="recent">Most Recent</option>
+            <option value="rating-desc">Rating: High to Low</option>
+            <option value="rating-asc">Rating: Low to High</option>
+            <option value="alpha-asc">Alphabetical: A to Z</option>
+            <option value="alpha-desc">Alphabetical: Z to A</option>
+        </select>
+    </div>
+
+    <!-- Loading State -->
+    <app-loading-indicator *ngIf="isLoading && cheeks.length === 0 && !noCheeksFound" [message]="'Loading cheeks...'" [size]="'lg'"
+        [fullPageStyle]="true">
+    </app-loading-indicator>
+
+    <!-- Error State -->
+    <div *ngIf="error && !isLoading" class="alert alert-error shadow-lg">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{{ error }}</span>
+        </div>
+    </div>
+
+    <!-- Error State -->
+    <div *ngIf="error" class="alert alert-error shadow-lg mt-4">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{{ error }}</span>
+        </div>
+    </div>
+
+    <!-- No Cheeks Found State -->
+    <div *ngIf="noCheeksFound && !isLoading && !error" class="text-center py-10">
+        <p class="text-xl text-base-content/70">No cheeks found ಥ_ಥ </p>
+        <p class="text-base-content/50">Why not create yours?</p>
+    </div>
+
+    <!-- Cheeks Grid -->
+    <div *ngIf="!error && !noCheeksFound && cheeks.length > 0" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div *ngFor="let cheek of cheeks"
+            class="card bg-base-100 shadow-xl hover:shadow-2xl transition-shadow duration-300">
+            <div class="card-body">
+                <h2 class="card-title">
+                    <ng-container *ngIf="isUser(cheek.owner)">
+                        <a [routerLink]="['/cheeks', getOwnerUsername(cheek.owner), cheek.slug]"
+                            class="link link-hover link-primary">{{ cheek.title }}</a>
+                    </ng-container>
+                    <ng-container *ngIf="!isUser(cheek.owner)">
+                        <span class="text-primary">{{ cheek.title }} (Link unavailable)</span>
+                    </ng-container>
+                </h2>
+                <p *ngIf="cheek.description" class="text-base-content/80 mb-2 text-sm">
+                    {{ cheek.description | slice:0:100 }}{{ cheek.description.length > 100 ? '...' : '' }}
+                </p>
+
+                <!-- Average Rating Display -->
+                <div *ngIf="cheek.reviewCount !== undefined && cheek.averageRating !== undefined"
+                    class="mb-2 flex items-center">
+                    <div class="rating rating-sm rating-half pointer-events-none">
+                        <!-- The first input is 'rating-hidden' to allow clearing if it were interactive. For display, it's mostly a convention. -->
+                        <input type="radio" [name]="'rating-' + cheek._id" class="rating-hidden" 
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 0" disabled />
+
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-1 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 0.5" disabled />
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-2 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 1.0" disabled />
+
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-1 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 1.5" disabled />
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-2 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 2.0" disabled />
+
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-1 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 2.5" disabled />
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-2 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 3.0" disabled />
+
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-1 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 3.5" disabled />
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-2 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 4.0" disabled />
+
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-1 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 4.5" disabled />
+                        <input type="radio" [name]="'rating-' + cheek._id" class="mask mask-star-2 mask-half-2 bg-yellow-400"
+                               [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 5.0" disabled />
+                    </div>
+                    <span class="ml-2 text-sm text-base-content/70">
+                        {{ cheek.averageRating | number:'1.1-1' }} ({{ cheek.reviewCount }} review{{ cheek.reviewCount
+                        === 1 ? '' : 's' }})
+                    </span>
+                </div>
+                <!-- End Average Rating Display -->
+
+                <div class="text-xs text-base-content/60 mb-3 space-y-1">
+                    <div *ngIf="cheek.categoryId">
+                        <strong>Category:</strong>
+                        <span class="badge badge-outline badge-sm ml-1">{{ cheek.categoryId.name }}</span>
+                    </div>
+                    <div *ngIf="!cheek.categoryId">
+                        <strong>Category:</strong>
+                        <span class="badge badge-outline badge-sm ml-1 text-base-content/50">N/A</span>
+                    </div>
+                    <div>
+                        <strong>User:</strong>
+                        <ng-container *ngIf="isUser(cheek.owner)">
+                            <span class="font-medium ml-1">{{ getOwnerUsername(cheek.owner) }}</span>
+                        </ng-container>
+                        <ng-container *ngIf="!isUser(cheek.owner) && cheek.owner">
+                            <span class="font-medium ml-1 text-error italic">
+                                Owner ID: {{cheek.owner}}
+                                (User data not fully loaded)
+                            </span>
+                        </ng-container>
+                        <ng-container *ngIf="!cheek.owner">
+                            <span class="font-medium ml-1 text-base-content/50 italic">No owner information</span>
+                        </ng-container>
+                    </div>
+                    <ng-container *ngIf="isUser(cheek.owner)">
+                        <div *ngIf="currentUserId && getOwnerId(cheek.owner) === currentUserId">
+                            <strong>Visibility:</strong>
+                            <span class="badge {{ cheek.isPublic ? 'badge-success' : 'badge-warning' }} badge-sm ml-1">
+                                {{ cheek.isPublic ? 'Public' : 'Private' }}
+                            </span>
+                        </div>
+                    </ng-container>
+                    <div *ngIf="cheek.tags && cheek.tags.length > 0">
+                        <strong>Tags:</strong>
+                        <span *ngFor="let tag of cheek.tags" class="badge badge-ghost badge-sm ml-1">{{ tag.name
+                            }}</span>
+                    </div>
+                    <div *ngIf="(!cheek.tags || cheek.tags.length === 0)">
+                        <strong>Tags:</strong>
+                        <span class="badge badge-ghost badge-sm ml-1 text-base-content/50">None</span>
+                    </div>
+                </div>
+
+                <div class="card-actions justify-end items-center">
+                    <span class="text-xs text-base-content/50">
+                        {{ cheek.createdAt | date:'dd/MM/yyyy' }}
+                    </span>
+                    <ng-container *ngIf="isUser(cheek.owner)">
+                        <a [routerLink]="['/cheeks', getOwnerUsername(cheek.owner), cheek.slug]"
+                            class="btn btn-sm btn-outline btn-primary">Spread</a>
+                    </ng-container>
+                    <ng-container *ngIf="!isUser(cheek.owner)">
+                        <button class="btn btn-sm btn-outline btn-disabled">View Details</button> </ng-container>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load More Button -->
+    <div *ngIf="!isLoading && !allCheeksLoaded && cheeks.length > 0 && totalCheeksFromServer > cheeks.length && !noCheeksFound" class="text-center mt-8 mb-4">
+        <button class="btn btn-primary btn-wide" (click)="onLoadMore()">
+            Load More
+        </button>
+    </div>
+
+    <!-- Loading Indicator for "Load More" -->
+    <app-loading-indicator *ngIf="isLoading && cheeks.length > 0 && !noCheeksFound" [message]="'Loading more cheeks...'" [size]="'md'"
+        [fullPageStyle]="false" class="mt-4 text-center">
+    </app-loading-indicator>
+
+</div>

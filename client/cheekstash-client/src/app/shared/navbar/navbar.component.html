@@ -2,14 +2,15 @@
   <!-- Navbar Start (Brand ONLY) -->
   <div class="navbar-start">
     <!-- Brand -->
-    <a routerLink="/" class="btn btn-ghost text-xl normal-case px-2">
-      <img src="assets/images/cheekstash-logo.png" alt="CheekStash Logo" class="h-10 sm:h-12">
+    <a routerLink="/" class="btn btn-ghost text-xl normal-case px-3 items-center">
+      <img src="assets/images/cheekstash-logo.svg" alt="CheekStash Logo" class="h-10 sm:h-12 mr-2 w-auto">
+      <span class="hidden sm:inline font-semibold">CheekStash</span>
     </a>
   </div>
 
   <!-- Navbar Center (Desktop Main Links) -->
   <div class="navbar-center hidden lg:flex">
-    <ul class="menu menu-horizontal p-0">
+    <ul class="menu menu-horizontal p-0 gap-6">
       <li><a routerLink="/home" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Home</a></li>
       <li><a routerLink="/cheeks" routerLinkActive="active">Cheeks</a></li>
     </ul>

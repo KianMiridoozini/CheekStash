@@ -1,0 +1,76 @@
+<form [formGroup]="reviewForm" (ngSubmit)="onSubmit()" class="p-4 bg-base-200 rounded-lg shadow">
+    <h3 class="text-xl font-semibold mb-4">{{ isEditMode ? 'Edit Your Review' : 'Write a Review' }}</h3>
+
+    <!-- Rating Stars -->
+    <div class="form-control mb-4">
+        <label class="label">
+            <span class="label-text">Your Rating <span class="text-error">*</span></span>
+        </label>
+        <div class="flex items-center space-x-1">
+            <button type="button" *ngFor="let star of stars" (click)="setRating(star)"
+                (mouseenter)="setHoveredStar(star)" (mouseleave)="clearHoveredStar()" [ngClass]="{
+                'text-yellow-400': star <= (hoveredStar || selectedStar),
+                'text-gray-300': star > (hoveredStar || selectedStar)
+              }" class="btn btn-ghost btn-sm p-0 text-2xl transition-colors">
+                ★
+            </button>
+        </div>
+        <div *ngIf="submitted && reviewForm.get('rating')?.invalid && reviewForm.get('rating')?.errors?.['required']"
+            class="text-error text-xs mt-1">
+            Rating is required.
+        </div>
+    </div>
+
+    <!-- Review Text -->
+    <div class="form-control mb-4">
+        <label for="reviewText" class="label">
+            <span class="label-text">Your Review (Optional)</span>
+        </label>
+        <textarea id="reviewText" formControlName="reviewText" placeholder="Share your thoughts on this cheek..."
+            class="textarea textarea-bordered w-full h-24"
+            [ngClass]="{ 'textarea-error': submitted && reviewForm.get('reviewText')?.invalid }"></textarea>
+        <div *ngIf="submitted && reviewForm.get('reviewText')?.invalid && reviewForm.get('reviewText')?.errors?.['maxlength']"
+            class="text-error text-xs mt-1">
+            Review text cannot exceed 2000 characters.
+        </div>
+    </div>
+
+    <!-- Error Message -->
+    <div *ngIf="error && (submitted || !currentUser)" class="alert alert-error shadow-lg my-3 text-sm p-3">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-5 w-5 mr-2" fill="none"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{{ error }}</span>
+        </div>
+    </div>
+    <div *ngIf="!currentUser && !error" class="alert alert-warning shadow-lg my-3 text-sm p-3">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-5 w-5 mr-2" fill="none"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+            <span>You need to be <a routerLink="/auth/login" class="link link-primary">logged in</a> to write a
+                review.</span>
+        </div>
+    </div>
+
+    <!-- Submit Button -->
+    <div class="card-actions justify-end items-center mt-6">
+        <button *ngIf="!isEditMode" type="button" (click)="onCloseForm()" class="btn btn-ghost" [disabled]="isLoading">
+            Close
+        </button>
+        <button *ngIf="isEditMode" type="button" (click)="cancelEdit()" class="btn btn-ghost" [disabled]="isLoading">
+            Cancel
+        </button>
+        <button type="submit" class="btn btn-primary"
+            [disabled]="isLoading || !currentUser || (submitted && reviewForm.invalid)">
+            <app-loading-indicator *ngIf="isLoading" [message]="isEditMode ? 'Updating...' : 'Submitting...'"
+                [size]="'xs'"></app-loading-indicator>
+            <span *ngIf="!isLoading">{{ isEditMode ? 'Update Review' : 'Submit Review' }}</span>
+        </button>
+    </div>
+</form>
