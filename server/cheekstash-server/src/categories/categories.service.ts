@@ -43,6 +43,10 @@ export class CategoriesService {
         return category;
     }
 
+    async findByNameRegex(nameRegex: RegExp): Promise<CategoryDocument[]> {
+        return this.categoryModel.find({ name: nameRegex }).exec();
+    }
+
     async update(id: string, updateCategoryDto: UpdateCategoryDto): Promise<CategoryDocument> {
         const existingCategory = await this.categoryModel.findById(id).exec();
         if (!existingCategory) {

@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsNumber, IsString, Min, Max, MaxLength } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsString, Min, Max, MaxLength, IsOptional } from 'class-validator';
 
 export class CreateReviewDto {
   @ApiProperty({ example: '65d5f48e9d3b8f0015a1b3c2', description: 'Cheek ID being reviewed' })
@@ -12,7 +12,8 @@ export class CreateReviewDto {
   @Max(5)
   rating: number;
 
-  @ApiProperty({ example: 'Great collection of AI tools!', description: 'Review text (optional)' })
+  @ApiProperty({ example: 'Great collection of AI tools!', description: 'Review text (optional)', required: false })
+  @IsOptional()
   @IsString()
   @MaxLength(500)
   review?: string;

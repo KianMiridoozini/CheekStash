@@ -13,6 +13,7 @@ import {
   UploadedFile,
   Patch,
   HttpCode,
+  Delete,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { UsersService } from './users.service';
@@ -23,12 +24,15 @@ import { UserDocument } from './schemas/user.schema';
 import { Types } from 'mongoose';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { RolesGuard } from '../auth/roles.guard'; // Ensure the correct path to RolesGuard
 import { File } from 'multer';
+import { Roles } from '../auth/roles.decorator';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto'; // New DTO for updating user role
 
 @ApiTags('users')
 @Controller('users')
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(private readonly usersService: UsersService) { }
 
   /**
    * List all users.
@@ -40,7 +44,6 @@ export class UsersController {
   async findAllUsers() {
     return this.usersService.findAll();
   }
-
   /**
    * Search users by name (or part of name)
    */
@@ -54,6 +57,22 @@ export class UsersController {
       throw new NotFoundException('Query parameter "name" is required');
     }
     return this.usersService.searchByName(name);
+  }
+
+  /**
+   * Find a user by username
+   */
+  @Get('by-username/:username')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'User found' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  @ApiOperation({ summary: 'Find a user by username' })
+  async findUserByUsername(@Param('username') username: string) {
+    const user = await this.usersService.findUserByUsername(username);
+    if (!user) {
+      throw new NotFoundException(`User with username ${username} not found`);
+    }
+    return user;
   }
 
   /**
@@ -83,7 +102,7 @@ export class UsersController {
 
   /**
    * Register a new user
-   */  
+   */
   @Post('register')
   @HttpCode(201)
   @ApiResponse({ status: 201, description: 'User registered' })
@@ -95,8 +114,8 @@ export class UsersController {
 
   /**
    * Update user profile (Protected: only the user themselves or an admin can update)
-   */ 
-  @Put('profile')
+   */
+  @Patch('profile')
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'User profile updated' })
   @ApiResponse({ status: 400, description: 'Email or username already taken' })
@@ -104,29 +123,30 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Update user profile' })
-  async updateProfile( 
+  async updateProfile(
     @Body() updateUserDto: UpdateUserDto,
     @Req() req,
   ): Promise<UserResponseDto> {
-    const updatedUser = (await this.usersService.updateProfile(req.user.id, updateUserDto, {
+    const userFromService = await this.usersService.updateProfile(req.user.id, updateUserDto, {
       id: req.user.id,
       role: req.user.role,
-    })) as UserDocument;
+    });
+
     return {
-      id: (updatedUser._id as Types.ObjectId).toHexString(),
-      username: updatedUser.username,
-      email: updatedUser.email,
-      displayName: updatedUser.profile?.displayName,
-      bio: updatedUser.profile?.bio,
-      avatarUrl: updatedUser.profile?.avatarUrl,
-      role: updatedUser.role,
+      id: userFromService.id,
+      username: userFromService.username,
+      email: userFromService.email,
+      displayName: userFromService.profile?.displayName,
+      bio: userFromService.profile?.bio,
+      avatarUrl: userFromService.profile?.avatarUrl,
+      role: userFromService.role,
     };
   }
 
   /**
    * Upload or update user profile image (avatar)
    */
-  @Patch('me/avatar')
+  @Patch('avatar')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @UseInterceptors(FileInterceptor('file'))
@@ -136,15 +156,83 @@ export class UsersController {
     @UploadedFile() file: File,
     @Req() req,
   ): Promise<UserResponseDto> {
-    const updatedUser = await this.usersService.uploadProfileImage(req.user.id, file);
+    const userFromService = await this.usersService.uploadProfileImage(req.user.id, file);
+
     return {
-      id: String((updatedUser as UserDocument)._id),
-      username: updatedUser.username,
-      email: updatedUser.email,
-      displayName: updatedUser.profile?.displayName,
-      bio: updatedUser.profile?.bio,
-      avatarUrl: updatedUser.profile?.avatarUrl,
-      role: updatedUser.role,
+      id: userFromService.id,
+      username: userFromService.username,
+      email: userFromService.email,
+      displayName: userFromService.profile?.displayName,
+      bio: userFromService.profile?.bio,
+      avatarUrl: userFromService.profile?.avatarUrl,
+      role: userFromService.role,
     };
+  }
+
+  /**
+   * Delete user profile image (avatar)
+   */
+  @Delete('avatar') // New endpoint
+  @HttpCode(200)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete user profile image (avatar)' })
+  @ApiResponse({ status: 200, description: 'Profile image deleted successfully' })
+  @ApiResponse({ status: 403, description: 'Unauthorized' })
+  @ApiResponse({ status: 404, description: 'User or avatar not found' })
+  async deleteProfileImage(
+    @Req() req,
+  ): Promise<UserResponseDto> {
+    const userFromService = await this.usersService.deleteAvatar(req.user.id, {
+      id: req.user.id,
+      role: req.user.role,
+    });
+
+    return {
+      id: userFromService.id,
+      username: userFromService.username,
+      email: userFromService.email,
+      displayName: userFromService.profile?.displayName,
+      bio: userFromService.profile?.bio,
+      avatarUrl: userFromService.profile?.avatarUrl, // This should now be undefined or null
+      role: userFromService.role,
+    };
+  }
+
+  @Patch('admin/:userIdToUpdate/role')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Admin: Update a user role' })
+  @ApiResponse({ status: 200, description: 'User role updated successfully by admin', type: UserResponseDto }) // Assuming UserResponseDto is suitable
+  @ApiResponse({ status: 400, description: 'Invalid role or user ID' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async adminUpdateUserRole(
+    @Param('userIdToUpdate') userIdToUpdate: string,
+    @Body() updateUserRoleDto: UpdateUserRoleDto, // Use the new DTO
+    @Req() req, // req.user for admin context if needed by service, though RolesGuard handles auth
+  ): Promise<Omit<UserDocument, 'passwordHash'>> { // Or UserResponseDto
+    return this.usersService.updateUserRole(userIdToUpdate, updateUserRoleDto.role);
+  }
+
+  /**
+   * Delete a user account (Admin only)
+   */
+  @Delete('admin/:userIdToDelete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('admin')
+  @HttpCode(200) // Or 204 No Content
+  @ApiOperation({ summary: 'Admin: Delete a user account' })
+  @ApiResponse({ status: 200, description: 'User deleted successfully by admin' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @ApiResponse({ status: 404, description: 'User not found' })
+  async adminDeleteUser(
+    @Param('userIdToDelete') userIdToDelete: string,
+    @Req() req, // req.user will contain the admin's details
+  ): Promise<{ message: string }> {
+    // The 'confirmPassword' argument is null because admins don't need to confirm the user's password.
+    // The usersService.deleteUser method already checks if the requester is an admin.
+    return this.usersService.deleteUser(userIdToDelete, '', req.user);
   }
 }

@@ -8,6 +8,9 @@ export class Cheeks {
   @Prop({ required: true })
   title: string;
 
+  @Prop({ required: true, index: true })
+  slug: string;
+
   @Prop()
   description: string;
 

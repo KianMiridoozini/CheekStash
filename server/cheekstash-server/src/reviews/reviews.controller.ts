@@ -32,8 +32,53 @@ export class ReviewsController {
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'List of reviews for the cheek' })
   @ApiOperation({ summary: 'Get all reviews for a specific cheek' })
-  async getReviews(@Param('cheekId') cheekId: string) {
-    return this.reviewsService.getReviewsForCheeks(cheekId);
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async getReviews(@Param('cheekId') cheekId: string, @Req() req) {
+    const requestingUserId = req.user ? req.user.id : undefined;
+    return this.reviewsService.getReviewsForCheek(cheekId, 1, 10, 'createdAt', 'desc', undefined, requestingUserId);
+  }
+
+  /**
+   * Get all reviews for a cheek by username and slug
+   */
+  @Get('by-slug/:username/:cheekSlug')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'List of reviews for the cheek, by slug' })
+  @ApiOperation({ summary: 'Get all reviews for a specific cheek by username and slug' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async getReviewsBySlug(
+    @Param('username') username: string,
+    @Param('cheekSlug') cheekSlug: string,
+    @Req() req,
+  ) {
+    const requestingUserId = req.user ? req.user.id : undefined;
+    return this.reviewsService.getReviewsForCheekBySlug(
+      username,
+      cheekSlug,
+      1,
+      10,
+      'createdAt',
+      'desc',
+      undefined,
+      requestingUserId,
+    );
+  }
+
+  /**
+   * Get a single review by its ID
+   */
+  @Get('review/:reviewId')
+  @HttpCode(200)
+  @ApiResponse({ status: 200, description: 'The review object' })
+  @ApiResponse({ status: 404, description: 'Review not found' })
+  @ApiOperation({ summary: 'Get a single review by its ID' })
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  async getReviewById(@Param('reviewId') reviewId: string, @Req() req) {
+    const requestingUserId = req.user ? req.user.id : undefined;
+    return this.reviewsService.getReviewById(reviewId, requestingUserId);
   }
 
   /**

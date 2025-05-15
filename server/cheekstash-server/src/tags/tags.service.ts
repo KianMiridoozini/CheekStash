@@ -42,6 +42,10 @@ export class TagsService {
         return this.tagModel.findOne({ name: name.toLowerCase().trim() }).exec();
     }
 
+    async findByNameRegex(nameRegex: RegExp): Promise<TagDocument[]> {
+        return this.tagModel.find({ name: nameRegex }).exec();
+    }
+
     async findByIds(ids: string[]): Promise<TagDocument[]> {
         return this.tagModel.find({ _id: { $in: ids } }).exec();
     }

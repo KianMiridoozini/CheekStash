@@ -11,7 +11,7 @@ import { JwtStrategy } from './jwt.strategy';
     forwardRef(() => UsersModule),
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'defaultSecretKey', // Use env variables in production!
+      secret: process.env.JWT_SECRET || 'defaultSecretKey', // Reverted to original
       signOptions: { expiresIn: '1d' }, // Token valid for 1 day
     }),
   ],
