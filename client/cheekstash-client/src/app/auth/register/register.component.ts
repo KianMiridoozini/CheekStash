@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router'; // Import RouterLink
 import { UsersService } from '../../users/users.service';
 import { SharedModule } from '../../shared/shared.module';
 import { MessageComponent } from '../../shared/components/message/message.component';
@@ -12,7 +12,8 @@ import { LoadingIndicatorComponent } from '../../shared/components/loading-indic
   imports: [
     SharedModule,
     MessageComponent,
-    LoadingIndicatorComponent
+    LoadingIndicatorComponent,
+    RouterLink 
   ],
   templateUrl: './register.component.html',
   styleUrls: ['./register.component.css']
