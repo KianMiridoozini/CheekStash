@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { AdminRoutingModule } from './admin-routing.module';
 import { AdminDashboardComponent } from './admin-dashboard/admin-dashboard.component';
 import { AdminManageCategoriesComponent } from './admin-manage-categories/admin-manage-categories.component';
+import { AdminManageUsersComponent } from './admin-manage-users/admin-manage-users.component';
 import { AdminManageTagsComponent } from './admin-manage-tags/admin-manage-tags.component';
 import { SharedModule } from '../shared/shared.module';
 
@@ -13,7 +14,8 @@ import { SharedModule } from '../shared/shared.module';
   declarations: [
     AdminDashboardComponent,
     AdminManageCategoriesComponent,
-    AdminManageTagsComponent
+    AdminManageTagsComponent,
+    AdminManageUsersComponent
   ],
   imports: [
     CommonModule,

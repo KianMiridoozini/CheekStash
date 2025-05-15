@@ -3,6 +3,7 @@ import { RouterModule, Routes } from '@angular/router';
 import { AdminDashboardComponent } from './admin-dashboard/admin-dashboard.component';
 import { AdminManageCategoriesComponent } from './admin-manage-categories/admin-manage-categories.component';
 import { AdminManageTagsComponent } from './admin-manage-tags/admin-manage-tags.component'; 
+import { AdminManageUsersComponent } from './admin-manage-users/admin-manage-users.component';
 
 const routes: Routes = [
   {
@@ -10,7 +11,8 @@ const routes: Routes = [
     component: AdminDashboardComponent,
   },
   { path: 'manage-categories', component: AdminManageCategoriesComponent },
-  { path: 'manage-tags', component: AdminManageTagsComponent } // Add route for managing tags
+  { path: 'manage-tags', component: AdminManageTagsComponent },
+  { path: 'manage-users', component: AdminManageUsersComponent }
 ];
 
 @NgModule({
