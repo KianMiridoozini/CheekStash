@@ -7,6 +7,7 @@ import {
   Req,
   UseGuards,
   UnauthorizedException,
+  Get,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
@@ -29,6 +30,19 @@ export class AuthController {
     return this.authService
       .validateUser(loginUserDto.email, loginUserDto.password)
       .then(user => this.authService.login(user));
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get current authenticated user profile' })
+  @ApiResponse({ status: 200, description: 'User profile retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  async getProfile(@Req() req) {
+    if (!req.user) {
+      throw new UnauthorizedException('User not authenticated or token invalid');
+    }
+    return this.authService.getUserProfile(req.user.id);
   }
 
   @Put('password')

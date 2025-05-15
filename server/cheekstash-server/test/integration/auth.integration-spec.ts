@@ -177,7 +177,7 @@ describe('PUT /api/auth/password', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      message: 'Password updated successfully',
+      message: 'Password updated successfully.',
     });
 
     const loginDto: LoginUserDto = {
@@ -212,7 +212,7 @@ describe('PUT /api/auth/password', () => {
       .send(invalidChangeDto);
 
     expect(response.status).toBe(401);
-    expect(response.body.message).toEqual('Incorrect old password');
+    expect(response.body.message).toEqual('Incorrect old password.'); // Added period
   });
 
   it('should return 401 if no token is provided', async () => {
@@ -276,7 +276,7 @@ describe('DELETE /api/auth/account', () => {
 
     expect(response.status).toBe(200);
     expect(response.body).toEqual({
-      message: 'User and all associated cheeks and reviews have been deleted', // Match exact message from service
+      message: 'User and all associated data (cheeks, reviews, avatar) have been deleted.', // Updated message
     });
 
     // --- Verification ---
@@ -309,7 +309,7 @@ describe('DELETE /api/auth/account', () => {
 
     expect(response.status).toBe(401);
     // Check message from AuthService.deleteUser -> UsersService -> bcrypt compare fail
-    expect(response.body.message).toEqual('Password confirmation failed');
+    expect(response.body.message).toEqual('Password confirmation failed.'); // Added period
 
     // Verify user still exists
     const userNotDeleted = await userModel.findById(createdUser!.id);

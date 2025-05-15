@@ -3,6 +3,8 @@ import { CommonModule } from '@angular/common';
 import { NavbarComponent } from './navbar/navbar.component';
 import { FooterComponent } from './footer/footer.component';
 import { FormsModule } from '@angular/forms';
+import { MessageComponent } from './components/message/message.component';
+import { LoadingIndicatorComponent } from './components/loading-indicator/loading-indicator.component';
 
 @NgModule({
   imports: [
@@ -11,6 +13,8 @@ import { FormsModule } from '@angular/forms';
 
     NavbarComponent,
     FooterComponent,
+    MessageComponent,
+    LoadingIndicatorComponent
   ],
   exports: [
     CommonModule,
@@ -18,6 +22,8 @@ import { FormsModule } from '@angular/forms';
     
     NavbarComponent,
     FooterComponent,
+    MessageComponent,
+    LoadingIndicatorComponent
   ]
 })
 export class SharedModule { }

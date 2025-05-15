@@ -1,0 +1,21 @@
+<h2>Categories</h2>
+
+<!-- Loading State -->
+<app-loading-indicator *ngIf="isLoading && categories.length === 0" [message]="'Loading categories...'" [size]="'lg'" [fullPageStyle]="true">
+</app-loading-indicator>
+
+<div *ngIf="error" class="error-message">
+    <p>{{ error }}</p>
+</div>
+
+<div *ngIf="!isLoading && !error && categories.length === 0" class="no-categories-message">
+    <p>No categories found.</p>
+</div>
+
+<ul *ngIf="!isLoading && !error && categories.length > 0" class="categories-list">
+    <li *ngFor="let category of categories" class="category-item">
+        <h3>{{ category.name }}</h3>
+        <p *ngIf="category.description">{{ category.description }}</p>
+        <p *ngIf="category.slug"><em>Slug: {{ category.slug }}</em></p>
+    </li>
+</ul>

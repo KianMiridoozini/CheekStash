@@ -15,7 +15,7 @@ async function bootstrap() {
     {
       origin: '*',
       methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
-      allowedHeaders: ['auth-token', 'Origin', 'X-Requested-With', 'Content-Type', 'Accept'],
+      allowedHeaders: ['auth-token', 'Origin', 'X-Requested-With', 'Content-Type', 'Accept', 'Authorization'],
       credentials: true,
     },
   );

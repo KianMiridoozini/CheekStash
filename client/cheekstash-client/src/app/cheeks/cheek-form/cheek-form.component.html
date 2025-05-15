@@ -1,0 +1,153 @@
+<div class="container mx-auto p-4 sm:p-6 lg:p-8">
+    <div class="max-w-2xl mx-auto card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h1 class="card-title text-2xl mb-6">{{ pageTitle }}</h1>
+
+            <app-loading-indicator 
+                [message]="'Loading categories...'" 
+                [size]="'lg'" 
+                [fullPageStyle]="true" 
+                *ngIf="isLoading && !categories.length && !submitted">
+            </app-loading-indicator>
+
+            <form [formGroup]="cheekForm" (ngSubmit)="onSubmit()" *ngIf="categories.length || (!isLoading && !categories.length && submitted)">
+                <!-- Title -->
+                <div class="form-control mb-4">
+                    <label for="title" class="label">
+                        <span class="label-text">Title <span class="text-error">*</span></span>
+                    </label>
+                    <input type="text" id="title" formControlName="title" placeholder="Enter cheek title"
+                        class="input input-bordered w-full"
+                        [ngClass]="{ 'input-error': submitted && cheekForm.get('title')?.invalid }" />
+                    <div *ngIf="submitted && cheekForm.get('title')?.invalid" class="text-error text-xs mt-1">
+                        <span *ngIf="cheekForm.get('title')?.errors?.['required']">Title is required.</span>
+                        <span *ngIf="cheekForm.get('title')?.errors?.['minlength']">Title must be at least 3
+                            characters.</span>
+                    </div>
+                </div>
+
+                <!-- Description -->
+                <div class="form-control mb-4">
+                    <label for="description" class="label">
+                        <span class="label-text">Description</span>
+                    </label>
+                    <textarea id="description" formControlName="description"
+                        placeholder="Describe your cheek collection"
+                        class="textarea textarea-bordered w-full h-24"></textarea>
+                </div>
+
+                <!-- Category -->
+                <div class="form-control mb-4">
+                    <label for="categoryId" class="label">
+                        <span class="label-text">Category <span class="text-error">*</span></span>
+                    </label>
+                    <select id="categoryId" formControlName="categoryId" class="select select-bordered w-full"
+                        [ngClass]="{ 'select-error': submitted && cheekForm.get('categoryId')?.invalid }">
+                        <option value="" disabled>Select a category</option>
+                        <option *ngFor="let category of categories" [value]="category._id">{{ category.name }}</option>
+                    </select>
+                    <div *ngIf="submitted && cheekForm.get('categoryId')?.invalid" class="text-error text-xs mt-1">
+                        <span *ngIf="cheekForm.get('categoryId')?.errors?.['required']">Category is required.</span>
+                    </div>
+                </div>
+
+                <!-- Tags -->
+                <div class="form-control mb-4">
+                    <label for="tagNames" class="label">
+                        <span class="label-text">Tags (comma-separated)</span>
+                    </label>
+                    <input type="text" id="tagNames" formControlName="tagNames"
+                        placeholder="e.g., productivity, AI, tools" class="input input-bordered w-full" />
+                    <div class="label">
+                        <span class="label-text-alt">Enter tag names separated by commas. New tags will be created if
+                            they don't exist.</span>
+                    </div>
+                </div>
+
+                <!-- isPublic -->
+                <div class="form-control mb-6">
+                    <label class="label cursor-pointer justify-start">
+                        <input type="checkbox" formControlName="isPublic" class="checkbox checkbox-primary mr-2" />
+                        <span class="label-text">Make this cheek public?</span>
+                    </label>
+                </div>
+
+                <!-- Links FormArray -->
+                <div formArrayName="links" class="mb-4">
+                    <h3 class="text-lg font-semibold mb-2">Links <span class="text-error">*</span> (min. 2)</h3>
+                    <div *ngFor="let linkGroup of linksFormArray.controls; let i=index" [formGroupName]="i"
+                        class="mb-4 p-4 border border-base-300 rounded-lg relative">
+                        <h4 class="font-medium mb-2">Link #{{ i + 1 }}</h4>
+                        <!-- Link Title -->
+                        <div class="form-control mb-2">
+                            <label [for]="'linkTitle' + i" class="label py-1">
+                                <span class="label-text">Link Title <span class="text-error">*</span></span>
+                            </label>
+                            <input type="text" [id]="'linkTitle' + i" formControlName="title"
+                                placeholder="e.g., Official Website" class="input input-sm input-bordered w-full"
+                                [ngClass]="{ 'input-error': submitted && linkGroup.get('title')?.invalid }" />
+                            <div *ngIf="submitted && linkGroup.get('title')?.invalid && linkGroup.get('title')?.errors?.['required']"
+                                class="text-error text-xs mt-1">
+                                Link title is required.
+                            </div>
+                        </div>
+                        <!-- Link URL -->
+                        <div class="form-control mb-2">
+                            <label [for]="'linkUrl' + i" class="label py-1">
+                                <span class="label-text">Link URL <span class="text-error">*</span></span>
+                            </label>
+                            <input type="url" [id]="'linkUrl' + i" formControlName="url"
+                                placeholder="https://example.com" class="input input-sm input-bordered w-full"
+                                [ngClass]="{ 'input-error': submitted && linkGroup.get('url')?.invalid }" />
+                            <div *ngIf="submitted && linkGroup.get('url')?.invalid" class="text-error text-xs mt-1">
+                                <span *ngIf="linkGroup.get('url')?.errors?.['required']">Link URL is required.</span>
+                                <span *ngIf="linkGroup.get('url')?.errors?.['pattern']">Please enter a valid URL.</span>
+                            </div>
+                        </div>
+                        <!-- Link Description -->
+                        <div class="form-control mb-2">
+                            <label [for]="'linkDesc' + i" class="label py-1">
+                                <span class="label-text">Link Description</span>
+                            </label>
+                            <input type="text" [id]="'linkDesc' + i" formControlName="description"
+                                placeholder="Short note about the link" class="input input-sm input-bordered w-full" />
+                        </div>
+                        <button type="button" (click)="removeLinkField(i)" *ngIf="linksFormArray.length > 2"
+                            class="btn btn-xs btn-error btn-outline absolute top-2 right-2">
+                            Remove
+                        </button>
+                    </div>
+                    <button type="button" (click)="addLinkField()" class="btn btn-sm btn-outline btn-accent mt-2">
+                        Add Another Link
+                    </button>
+                    <div *ngIf="submitted && linksFormArray.invalid && linksFormArray.errors?.['minlength']"
+                        class="text-error text-xs mt-1">
+                        At least two links are required.
+                    </div>
+                </div>
+                <!-- End Links FormArray -->
+
+                <!-- Submission Error -->
+                <div *ngIf="error && submitted" class="alert alert-error shadow-lg my-4">
+                    <div>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <span class="whitespace-pre-line">{{ error }}</span>
+                    </div>
+                </div>
+
+                <!-- Submit Button -->
+                <div class="card-actions justify-end mt-6">
+                    <a routerLink="/cheeks" class="btn btn-ghost">Cancel</a>
+                    <button type="submit" class="btn btn-primary" [disabled]="(cheekForm.invalid && submitted) || (isLoading && submitted)">
+                        <app-loading-indicator *ngIf="isLoading && submitted" [message]="isEditMode ? 'Updating...' : 'Submitting...'" [size]="'xs'"></app-loading-indicator>
+                        <span *ngIf="!(isLoading && submitted)">{{ isEditMode ? 'Update Cheek' : 'Create Cheek' }}</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

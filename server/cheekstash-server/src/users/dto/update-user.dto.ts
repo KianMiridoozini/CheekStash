@@ -15,13 +15,4 @@ export class UpdateUserDto {
   @IsString()
   bio?: string;
 
-  @ApiPropertyOptional({ example: 'https://example.com/avatar.png', description: 'Profile image URL' })
-  @IsOptional()
-  @IsUrl()
-  avatarUrl?: string;
-
-  @ApiPropertyOptional({ example: 'cloudinary-public-id', description: 'Cloudinary public ID for the profile image (internal use)' })
-  @IsOptional()
-  @IsString()
-  profileImagePublicId?: string;
 }

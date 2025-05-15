@@ -1,0 +1,80 @@
+<div class="container mx-auto p-4 max-w-lg">
+    <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h2 class="card-title text-2xl mb-6">Edit Profile</h2>
+
+            <form [formGroup]="editProfileForm" (ngSubmit)="onSubmit()">
+                <!-- Profile Image Upload -->
+                <div class="form-control mb-4">
+                    <label class="label" for="profileImage">
+                        <span class="label-text">Profile Picture</span>
+                    </label>
+
+                    <!-- Image Preview -->
+                    <div class="mb-4">
+                        <img *ngIf="selectedFilePreview" [src]="selectedFilePreview" alt="Selected profile image preview" class="rounded-full w-32 h-32 object-cover mx-auto" />
+                        <img *ngIf="!selectedFilePreview && currentUser?.profile?.avatarUrl" [src]="currentUser?.profile?.avatarUrl" alt="Current profile image" class="rounded-full w-32 h-32 object-cover mx-auto" />
+                        <div *ngIf="!selectedFilePreview && !currentUser?.profile?.avatarUrl" class="w-32 h-32 bg-base-300 rounded-full flex items-center justify-center mx-auto">
+                            <span class="text-base-content text-opacity-50">No Image</span>
+                        </div>
+                    </div>
+
+                    <input type="file" id="profileImage" (change)="onFileSelected($event)"
+                        accept="image/png, image/jpeg, image/gif"
+                        class="file-input file-input-bordered w-full" />
+                    <div *ngIf="editProfileForm.get('profileImage')?.invalid && editProfileForm.get('profileImage')?.touched && editProfileForm.get('profileImage')?.errors?.['fileSize']"
+                        class="text-error text-xs mt-1">
+                        Profile image must be less than 2MB.
+                    </div>
+                    <div *ngIf="editProfileForm.get('profileImage')?.invalid && editProfileForm.get('profileImage')?.touched && editProfileForm.get('profileImage')?.errors?.['fileType']"
+                        class="text-error text-xs mt-1">
+                        Invalid file type. Please select a PNG, JPG, or GIF.
+                    </div>
+                </div>
+
+                <!-- Display Name Field -->
+                <div class="form-control mb-4">
+                    <label class="label" for="displayName">
+                        <span class="label-text">Display Name</span>
+                    </label>
+                    <input type="text" id="displayName" formControlName="displayName"
+                        placeholder="Your public display name" class="input input-bordered w-full"
+                        [ngClass]="{'input-error': editProfileForm.get('displayName')?.invalid && editProfileForm.get('displayName')?.touched}">
+                    <div *ngIf="editProfileForm.get('displayName')?.invalid && editProfileForm.get('displayName')?.touched"
+                        class="text-error text-xs mt-1">
+                        <span *ngIf="editProfileForm.get('displayName')?.errors?.['maxlength']">Display name cannot
+                            exceed 50 characters.</span>
+                    </div>
+                </div>
+
+                <!-- Bio Field -->
+                <div class="form-control mb-6">
+                    <label class="label" for="bio">
+                        <span class="label-text">Bio</span>
+                    </label>
+                    <textarea id="bio" formControlName="bio" placeholder="Tell us a little about yourself"
+                        class="textarea textarea-bordered w-full h-32"
+                        [ngClass]="{'textarea-error': editProfileForm.get('bio')?.invalid && editProfileForm.get('bio')?.touched}"></textarea>
+                    <div *ngIf="editProfileForm.get('bio')?.invalid && editProfileForm.get('bio')?.touched"
+                        class="text-error text-xs mt-1">
+                        <span *ngIf="editProfileForm.get('bio')?.errors?.['maxlength']">Bio cannot exceed 250
+                            characters.</span>
+                    </div>
+                </div>
+
+                <!-- Error Message -->
+                <app-message [message]="errorMessage" type="error"></app-message>
+
+                <!-- Action Buttons -->
+                <div class="card-actions justify-end">
+                    <button type="button" class="btn btn-ghost" (click)="onCancel()"
+                        [disabled]="isLoading">Cancel</button>
+                    <button type="submit" class="btn btn-primary" [disabled]="editProfileForm.invalid || isLoading">
+                        <span *ngIf="isLoading" class="loading loading-spinner loading-xs"></span>
+                        {{ isLoading ? 'Saving...' : 'Save Changes' }}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

@@ -5,17 +5,25 @@ export type ReviewDocument = Review & Document;
 
 @Schema({ timestamps: true })
 export class Review {
-  @Prop({ required: true, type: Types.ObjectId, ref: 'Cheeks' })
+  @Prop({ type: Types.ObjectId, ref: 'Cheeks', required: true, index: true })
   cheekId: Types.ObjectId;
 
-  @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
+  @Prop({ type: Types.ObjectId, ref: 'User', required: true, index: true })
   userId: Types.ObjectId;
 
   @Prop({ required: true })
+  username: string;
+
+  @Prop({ required: true, min: 1, max: 5 })
   rating: number;
 
-  @Prop()
+  @Prop({ required: false, trim: true })
   review: string;
+
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export const ReviewSchema = SchemaFactory.createForClass(Review);
+
+ReviewSchema.index({ cheekId: 1, userId: 1 }, { unique: true });

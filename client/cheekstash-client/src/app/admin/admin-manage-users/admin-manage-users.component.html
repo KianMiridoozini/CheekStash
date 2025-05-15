@@ -1,0 +1,147 @@
+<div class="container mx-auto p-4">
+    <div class="flex justify-between items-center mb-6">
+        <h2 class="text-2xl font-bold text-primary">Manage Users</h2>
+        <button routerLink="../" class="btn btn-sm btn-outline btn-secondary">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
+                stroke="currentColor" class="w-4 h-4 mr-2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+            </svg>
+            Back to Admin
+        </button>
+    </div>
+
+    <p class="mb-6 text-base-content/80">
+        View, search, sort, and manage user roles or delete users from the system.
+    </p>
+
+    <!-- Search and Sort Controls -->
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 p-4 bg-base-200 rounded-lg shadow">
+        <div class="form-control w-full md:w-1/2">
+            <input type="text" placeholder="Search by username, email, or display name..."
+                class="input input-bordered w-full" [value]="searchTerm" (input)="onSearchTermChange($event)" />
+        </div>
+        <div class="flex flex-wrap gap-2">
+            <span class="label-text self-center">Sort by:</span>
+            <button class="btn btn-sm btn-outline" (click)="changeSort('username')"
+                [class.btn-active]="sortProperty === 'username'">
+                Username
+                <span *ngIf="sortProperty === 'username'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+            </button>
+            <button class="btn btn-sm btn-outline" (click)="changeSort('profile.displayName')"
+                [class.btn-active]="sortProperty === 'profile.displayName'">
+                Display Name
+                <span *ngIf="sortProperty === 'profile.displayName'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+            </button>
+            <button class="btn btn-sm btn-outline" (click)="changeSort('email')"
+                [class.btn-active]="sortProperty === 'email'">
+                Email
+                <span *ngIf="sortProperty === 'email'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+            </button>
+            <button class="btn btn-sm btn-outline" (click)="changeSort('role')"
+                [class.btn-active]="sortProperty === 'role'">
+                Role
+                <span *ngIf="sortProperty === 'role'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+            </button>
+            <button class="btn btn-sm btn-outline" (click)="changeSort('creationDate')"
+                [class.btn-active]="sortProperty === 'creationDate'">
+                Joined
+                <span *ngIf="sortProperty === 'creationDate'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+            </button>
+            <button class="btn btn-sm btn-outline" (click)="changeSort('lastLogin')"
+                [class.btn-active]="sortProperty === 'lastLogin'">
+                Last Activity
+                <span *ngIf="sortProperty === 'lastLogin'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+            </button>
+        </div>
+    </div>
+
+    <app-loading-indicator [message]="'Loading users...'" [size]="'lg'" *ngIf="isLoading && !filteredUsers.length">
+    </app-loading-indicator>
+
+    <div *ngIf="error" class="alert alert-error shadow-lg mb-6">
+        <div>
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Error: {{ error }}</span>
+            <button (click)="loadUsers()" *ngIf="!isLoading" class="btn btn-sm btn-outline ml-4">Try Reloading
+                Users</button>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto" *ngIf="filteredUsers.length > 0">
+        <h3 class="text-xl font-semibold mb-4">Current Users ({{ filteredUsers.length }})</h3>
+        <app-loading-indicator [message]="'Refreshing user list...'" [size]="'md'"
+            *ngIf="isLoading && filteredUsers.length">
+        </app-loading-indicator>
+        <table class="table w-full table-zebra shadow-lg">
+            <thead>
+                <tr>
+                    <th (click)="changeSort('username')" class="cursor-pointer hover:bg-base-200">
+                        Username <span *ngIf="sortProperty === 'username'">{{ sortDirection === 'asc' ? '↑' : '↓'
+                            }}</span>
+                    </th>
+                    <th (click)="changeSort('profile.displayName')" class="cursor-pointer hover:bg-base-200">
+                        Display Name <span *ngIf="sortProperty === 'profile.displayName'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                    </th>
+                    <th (click)="changeSort('email')" class="cursor-pointer hover:bg-base-200">
+                        Email <span *ngIf="sortProperty === 'email'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                    </th>
+                    <th (click)="changeSort('role')" class="cursor-pointer hover:bg-base-200">
+                        Role <span *ngIf="sortProperty === 'role'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                    </th>
+                    <th (click)="changeSort('creationDate')" class="cursor-pointer hover:bg-base-200">
+                        Joined <span *ngIf="sortProperty === 'creationDate'">{{ sortDirection === 'asc' ? '↑' : '↓'
+                            }}</span>
+                    </th>
+                    <th (click)="changeSort('lastLogin')" class="cursor-pointer hover:bg-base-200">
+                        Last Activity <span *ngIf="sortProperty === 'lastLogin'">{{ sortDirection === 'asc' ? '↑' : '↓'
+                            }}</span>
+                    </th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngFor="let user of filteredUsers" class="hover">
+                    <td><strong>{{ user.username }}</strong></td>
+                    <td>{{ user.profile?.displayName || '-' }}</td>
+                    <td>{{ user.email }}</td>
+                    <td>
+                        <span class="badge"
+                            [class.badge-primary]="user.role === 'admin'"
+                            [class.badge-secondary]="user.role === 'user'">
+                            {{ user.role | titlecase }}
+                        </span>
+                    </td>
+                    <td>{{ user.createdAt | date:'mediumDate' }}</td>
+                    <td>{{ user.updatedAt | date:'mediumDate' }}</td> <!-- Assuming lastLogin is reflected by updatedAt -->
+                    <td class="space-y-2 md:space-y-0 md:space-x-2">
+                        <div class="flex flex-col md:flex-row gap-2 items-stretch">
+                            <select class="select select-bordered select-sm w-full md:w-auto" 
+                                    [ngModel]="user.role"
+                                    (ngModelChange)="changeUserRole(user.id, user.username, $event)"
+                                    [disabled]="isLoading">
+                                <option value="user">User</option>
+                                <option value="admin">Admin</option>
+                            </select>
+                            <button class="btn btn-sm btn-outline btn-error w-full md:w-auto"
+                                (click)="deleteUser(user.id, user.username)" [disabled]="isLoading">
+                                Delete
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <div *ngIf="!isLoading && !error && users.length > 0 && filteredUsers.length === 0" class="text-center py-8">
+        <p class="text-lg text-base-content/70">No users match your search criteria: "{{ searchTerm }}".</p>
+    </div>
+
+    <div *ngIf="!isLoading && !error && users.length === 0" class="text-center py-8">
+        <p class="text-lg text-base-content/70">No users found in the system.</p>
+    </div>
+</div>

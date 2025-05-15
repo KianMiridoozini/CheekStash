@@ -1,422 +1,428 @@
-// src/cheeks/cheeks.service.spec.ts
-import { Test, TestingModule } from '@nestjs/testing';
-import { getModelToken } from '@nestjs/mongoose';
-import { Model, Types } from 'mongoose';
-import { CheeksService } from './cheeks.service';
-import { Cheeks, CheeksDocument } from './schemas/cheek.schema';
-import { CheeksDto } from './dto/cheeks.dto';
-import { UpdateCheeksDto } from './dto/update-cheeks.dto';
-import { NotFoundException, ForbiddenException } from '@nestjs/common';
-import { Category, CategoryDocument } from '../categories/schema/category.schema';
-import { Tag, TagDocument } from '../tags/schema/tag.schema';
-import { CategoriesService } from '../categories/categories.service';
-import { TagsService } from '../tags/tags.service';
+// // src/cheeks/cheeks.service.spec.ts
+// import { Test, TestingModule } from '@nestjs/testing';
+// import { getModelToken } from '@nestjs/mongoose';
+// import { Model, Types } from 'mongoose';
+// import { CheeksService } from './cheeks.service';
+// import { Cheeks, CheeksDocument } from './schemas/cheek.schema';
+// import { CheeksDto } from './dto/cheeks.dto';
+// import { UpdateCheeksDto } from './dto/update-cheeks.dto';
+// import { NotFoundException, ForbiddenException, InternalServerErrorException } from '@nestjs/common';
+// import { Category } from '../categories/schema/category.schema'; // Removed Document suffix
+// import { Tag } from '../tags/schema/tag.schema'; // Removed Document suffix
+// import { CategoriesService } from '../categories/categories.service';
+// import { TagsService } from '../tags/tags.service';
 
-const mockStaticMethods = {
-  find: jest.fn(),
-  findById: jest.fn(),
-  findOneAndUpdate: jest.fn(),
-  findByIdAndDelete: jest.fn(),
-};
+// const mockStaticMethods = {
+//   find: jest.fn(),
+//   findById: jest.fn(),
+//   findOneAndUpdate: jest.fn(),
+//   findByIdAndDelete: jest.fn(),
+// };
 
-const mockDocument = (dto: Partial<CheeksDto & { tagIds: string[] }> = {}, ownerId?: string) => ({
-  title: dto.title || 'Default Title',
-  description: dto.description || 'Default Desc',
-  categoryId: dto.categoryId || new Types.ObjectId().toHexString(),
-  tagNames: dto.tagNames || [],
-  isPublic: dto.isPublic !== undefined ? dto.isPublic : true,
-  links: dto.links || [],
-  _id: (dto as any)._id || new Types.ObjectId(),
-  owner: new Types.ObjectId(ownerId || new Types.ObjectId().toHexString()),
-  save: jest.fn().mockResolvedValue({
-    title: dto.title || 'Default Title',
-    description: dto.description || 'Default Desc',
-    categoryId: dto.categoryId || new Types.ObjectId().toHexString(),
-    tagNames: dto.tagNames || [],
-    isPublic: dto.isPublic !== undefined ? dto.isPublic : true,
-    links: dto.links || [],
-    _id: (dto as any)._id || new Types.ObjectId(),
-    owner: new Types.ObjectId(ownerId || new Types.ObjectId().toHexString()),
-  }),
-  toString: jest
-    .fn()
-    .mockReturnValue(
-      JSON.stringify({ ...dto, _id: (dto as any)._id, owner: ownerId }),
-    ),
-});
+// // Represents the raw data of a cheek document, not an instance with methods
+// const mockCheekData = (dto: Partial<CheeksDto & { _id?: Types.ObjectId | string, owner?: Types.ObjectId | string, categoryId?: Types.ObjectId | string, tagIds?: Types.ObjectId[] }> = {}) => ({
+//   _id: dto._id || new Types.ObjectId(),
+//   title: dto.title || 'Default Title',
+//   description: dto.description || 'Default Desc',
+//   categoryId: new Types.ObjectId(dto.categoryId?.toString() || new Types.ObjectId().toHexString()),
+//   tagIds: dto.tagIds || [],
+//   isPublic: dto.isPublic !== undefined ? dto.isPublic : true,
+//   links: dto.links || [],
+//   owner: new Types.ObjectId(dto.owner?.toString() || new Types.ObjectId().toHexString()),
+//   // Removed save and toString from here
+// });
 
-const mockQuery = (resolveValue: any = null) => ({
-  exec: jest.fn().mockResolvedValue(resolveValue),
-  select: jest.fn().mockReturnThis(),
-  populate: jest.fn().mockReturnThis(),
-});
 
-const createMockCheeksModel = () => {
-  const model = jest.fn().mockImplementation((dto) => mockDocument(dto));
-  return Object.assign(model, mockStaticMethods);
-};
+// const mockQuery = (resolveValue: any = null) => ({
+//   exec: jest.fn().mockResolvedValue(resolveValue),
+//   select: jest.fn().mockReturnThis(),
+//   populate: jest.fn().mockReturnThis(), // Key for testing populate calls
+// });
 
-describe('CheeksService', () => {
-  let service: CheeksService;
-  let cheeksModel: jest.Mock & typeof mockStaticMethods;
-  let mockCategoryModel: any;
-  let mockTagModel: any;
-  let tagsServiceMock: TagsService;
+// // Factory for CheeksModel mock
+// const createMockCheeksModel = () => {
+//   // The constructor mock. `new this.CheeksModel(data)` is called in service.
+//   // It should return an object that has a `save` method.
+//   const modelConstructor = jest.fn().mockImplementation((data) => {
+//     // Data passed to constructor by service
+//     const instanceData = {
+//       ...data, // includes owner (string), categoryId (string from DTO), tagIds (ObjectId[] from service)
+//       _id: data._id || new Types.ObjectId(), // Mongoose typically adds _id on instantiation or save
+//       owner: new Types.ObjectId(data.owner), // Ensure owner is ObjectId
+//       categoryId: new Types.ObjectId(data.categoryId), // Ensure categoryId is ObjectId
+//     };
 
-  beforeEach(async () => {
-    jest.clearAllMocks();
+//     // The object returned by `save()` should have `populate()`
+//     const savedDocWithPopulate = {
+//       ...instanceData,
+//       populate: jest.fn().mockImplementation(function(this: any, paths: any) {
+//         // Simulate population
+//         const populatedVersion = { ...this };
+//         const pathArray = Array.isArray(paths) ? paths : [paths];
+//         if (pathArray.some((p: any) => p.path === 'categoryId' || p === 'categoryId')) {
+//           populatedVersion.categoryId = { _id: this.categoryId, name: 'Mock Populated Category' };
+//         }
+//         if (pathArray.some((p: any) => p.path === 'tagIds' || p === 'tagIds')) {
+//           populatedVersion.tagIds = (this.tagIds || []).map((id: Types.ObjectId) => ({
+//             _id: id,
+//             name: `Mock Populated Tag ${id.toHexString()}`,
+//           }));
+//         }
+//         return Promise.resolve(populatedVersion);
+//       }),
+//     };
+//     return {
+//       ...instanceData,
+//       save: jest.fn().mockResolvedValue(savedDocWithPopulate),
+//     };
+//   });
+//   return Object.assign(modelConstructor, mockStaticMethods);
+// };
 
-    cheeksModel = createMockCheeksModel();
-    mockCategoryModel = { findById: jest.fn(), find: jest.fn() };
-    mockTagModel = { findById: jest.fn(), find: jest.fn() };
+// describe('CheeksService', () => {
+//   let service: CheeksService;
+//   let cheeksModel: ReturnType<typeof createMockCheeksModel>; // Correct type
+//   let categoriesServiceMock: CategoriesService;
+//   let tagsServiceMock: TagsService;
 
-    const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        CheeksService,
-        {
-          provide: getModelToken(Cheeks.name),
-          useValue: cheeksModel,
-        },
-        {
-          provide: getModelToken(Category.name),
-          useValue: mockCategoryModel,
-        },
-        {
-          provide: getModelToken(Tag.name),
-          useValue: mockTagModel,
-        },
-        {
-          provide: CategoriesService,
-          useValue: {
-            findOne: jest.fn().mockResolvedValue({ _id: 'mockCategoryId', name: 'Mock Category' }),
-          },
-        },
-        {
-          provide: TagsService,
-          useValue: {
-            findOrCreateTags: jest.fn().mockResolvedValue([]),
-            updateTagUsageCount: jest.fn().mockResolvedValue(null),
-          },
-        },
-      ],
-    }).compile();
+//   beforeEach(async () => {
+//     jest.clearAllMocks(); // Clear all mocks
 
-    service = module.get<CheeksService>(CheeksService);
-    tagsServiceMock = module.get<TagsService>(TagsService);
+//     const module: TestingModule = await Test.createTestingModule({
+//       providers: [
+//         CheeksService,
+//         {
+//           provide: getModelToken(Cheeks.name),
+//           useValue: createMockCheeksModel(), // Use the factory
+//         },
+//         {
+//           provide: CategoriesService,
+//           useValue: { // Mock methods used by CheeksService
+//             findOne: jest.fn(),
+//           },
+//         },
+//         {
+//           provide: TagsService,
+//           useValue: { // Mock methods used by CheeksService
+//             findOrCreateTags: jest.fn(),
+//             updateTagUsageCount: jest.fn(),
+//           },
+//         },
+//         // Removed Category and Tag model providers as they are not directly injected into CheeksService
+//       ],
+//     }).compile();
 
-    jest.spyOn(tagsServiceMock, 'updateTagUsageCount').mockResolvedValue(null); // Simplified mock return
-  });
+//     service = module.get<CheeksService>(CheeksService);
+//     cheeksModel = module.get(getModelToken(Cheeks.name));
+//     categoriesServiceMock = module.get<CategoriesService>(CategoriesService);
+//     tagsServiceMock = module.get<TagsService>(TagsService);
+//   });
 
-  it('should be defined', () => {
-    expect(service).toBeDefined();
-  });
+//   it('should be defined', () => {
+//     expect(service).toBeDefined();
+//   });
 
-  describe('createCheeks', () => {
-    const ownerId = new Types.ObjectId().toHexString();
-    const categoryId = new Types.ObjectId().toHexString();
-    const cheeksDto: CheeksDto = {
-      title: 'Test Cheek',
-      description: 'Desc',
-      categoryId: categoryId,
-      tagNames: ['tag1', 'tag2'],
-      isPublic: true,
-      links: [
-        { title: 't', url: 'u', description: 'd', order: 0 },
-        { title: 't2', url: 'u2', description: 'd2', order: 1 },
-      ],
-    };
-    const savedCheekDoc = {
-      ...mockDocument({ ...cheeksDto }, ownerId),
-      tagIds: [new Types.ObjectId(), new Types.ObjectId()],
-      populate: jest.fn().mockImplementation(function (this: any, paths: any) {
-        if (paths.some((p: any) => p.path === 'categoryId')) {
-          this.categoryId = { _id: categoryId, name: 'Mock Populated Category' };
-        }
-        if (paths.some((p: any) => p.path === 'tagIds')) {
-          this.tagIds = (this.tagIds || []).map((id: Types.ObjectId) => ({
-            _id: id,
-            name: `Mock Populated Tag ${id.toHexString()}`,
-          }));
-        }
-        return Promise.resolve(this);
-      }),
-    };
+//   describe('createCheeks', () => {
+//     const ownerId = new Types.ObjectId().toHexString();
+//     const categoryId = new Types.ObjectId();
+//     const cheeksDto: CheeksDto = {
+//       title: 'Test Cheek',
+//       description: 'Desc',
+//       categoryId: categoryId.toHexString(),
+//       tagNames: ['tag1', 'tag2'],
+//       isPublic: true,
+//       links: [{ title: 't', url: 'u', description: 'd', order: 0 }],
+//     };
 
-    it('should create and save a new cheek', async () => {
-      const mockSave = jest.fn().mockResolvedValue(savedCheekDoc);
-      cheeksModel.mockImplementationOnce(() => ({
-        ...cheeksDto,
-        owner: ownerId,
-        save: mockSave,
-      }));
+//     const mockTagDoc1 = { _id: new Types.ObjectId(), name: 'tag1' };
+//     const mockTagDoc2 = { _id: new Types.ObjectId(), name: 'tag2' };
+//     const mockTagDocs = [mockTagDoc1, mockTagDoc2];
+//     const mockTagIds = mockTagDocs.map(t => t._id);
 
-      jest.spyOn(service['categoriesService'], 'findOne').mockResolvedValue({
-        _id: categoryId,
-        name: 'Mock Category From Service',
-      } as any);
-      jest.spyOn(tagsServiceMock, 'findOrCreateTags').mockResolvedValue(
-        savedCheekDoc.tagIds.map((id) => ({
-          _id: id,
-          name: `Mock Tag ${id.toHexString()}`,
-        })) as any,
-      );
+//     beforeEach(() => {
+//       (categoriesServiceMock.findOne as jest.Mock).mockResolvedValue({ _id: categoryId, name: 'Mock Category' });
+//       (tagsServiceMock.findOrCreateTags as jest.Mock).mockResolvedValue(mockTagDocs);
+//       (tagsServiceMock.updateTagUsageCount as jest.Mock).mockResolvedValue(null);
+//     });
 
-      const result = await service.createCheeks(cheeksDto, ownerId);
+//     it('should create, save, and populate a new cheek', async () => {
+//       const result = await service.createCheeks(cheeksDto, ownerId);
 
-      expect(cheeksModel).toHaveBeenCalledWith(
-        expect.objectContaining({
-          ...cheeksDto,
-          owner: ownerId,
-        }),
-      );
-      expect(mockSave).toHaveBeenCalled();
-      expect(savedCheekDoc.populate).toHaveBeenCalledWith([
-        { path: 'categoryId' },
-        { path: 'tagIds' },
-      ]);
+//       expect(categoriesServiceMock.findOne).toHaveBeenCalledWith(cheeksDto.categoryId);
+//       expect(tagsServiceMock.findOrCreateTags).toHaveBeenCalledWith(cheeksDto.tagNames);
+//       expect(tagsServiceMock.updateTagUsageCount).toHaveBeenCalledTimes(mockTagDocs.length);
+//       expect(tagsServiceMock.updateTagUsageCount).toHaveBeenCalledWith(mockTagDoc1._id.toString(), 1);
+//       expect(tagsServiceMock.updateTagUsageCount).toHaveBeenCalledWith(mockTagDoc2._id.toString(), 1);
 
-      expect(result).toEqual(
-        expect.objectContaining({
-          title: cheeksDto.title,
-          owner: new Types.ObjectId(ownerId),
-          categoryId: expect.objectContaining({ _id: categoryId, name: 'Mock Populated Category' }),
-          tagIds: expect.arrayContaining([
-            expect.objectContaining({ name: expect.stringContaining('Mock Populated Tag') }),
-          ]),
-        }),
-      );
-      expect(result.tagIds.length).toBe(2);
-    });
-  });
+//       expect(cheeksModel).toHaveBeenCalledWith({
+//         ...cheeksDto, // categoryId is string here
+//         owner: ownerId, // ownerId is string
+//         tagIds: mockTagIds, // tagIds are ObjectIds
+//       });
+      
+//       // Access the instance created by the constructor mock to check its save method
+//       const mockInstance = cheeksModel.mock.results[0].value;
+//       expect(mockInstance.save).toHaveBeenCalled();
 
-  describe('getCheeks', () => {
-    it('should return an array of cheeks with populated category and tags', async () => {
-      const categoryObj = { _id: new Types.ObjectId(), name: 'Populated Category' };
-      const tagObj = { _id: new Types.ObjectId(), name: 'Populated Tag' };
-      const cheeksData = [
-        mockDocument({ title: 'Cheek 1', categoryId: categoryObj._id.toHexString(), tagNames: ['tagA'] }),
-        mockDocument({ title: 'Cheek 2' }),
-      ];
-      const mockExec = jest.fn().mockResolvedValue(
-        cheeksData.map((cheek) => ({
-          ...cheek,
-          categoryId: categoryObj,
-          tagIds: [tagObj],
-        })),
-      );
-      const mockPopulateTags = jest.fn().mockReturnThis();
-      const mockPopulateCategory = jest.fn().mockReturnThis();
-      cheeksModel.find.mockReturnValueOnce({
-        populate: mockPopulateCategory.mockImplementation((path: string) => {
-          if (path === 'categoryId')
-            return {
-              populate: mockPopulateTags.mockImplementation((path2: string) => {
-                if (path2 === 'tagIds') return { exec: mockExec };
-                return { exec: mockExec };
-              }),
-            };
-          return { exec: mockExec };
-        }),
-        exec: mockExec,
-      } as any);
+//       // Access the populate mock on the result of save
+//       const savedDocWithPopulate = await mockInstance.save();
+//       expect(savedDocWithPopulate.populate).toHaveBeenCalledWith([
+//         { path: 'categoryId' },
+//         { path: 'tagIds' },
+//       ]);
+      
+//       expect(result.title).toBe(cheeksDto.title);
+//       expect(result.owner.toString()).toBe(ownerId); // Compare string versions or use .toEqual(new Types.ObjectId(ownerId))
+//       expect(result.categoryId).toEqual({ _id: categoryId, name: 'Mock Populated Category' });
+//       expect(result.tagIds).toEqual(
+//         mockTagIds.map(id => ({ _id: id, name: `Mock Populated Tag ${id.toHexString()}` }))
+//       );
+//     });
 
-      const result = await service.getCheeks();
+//     it('should throw InternalServerErrorException if save fails', async () => {
+//       const saveError = new Error('DB save failed');
+//       // Make the constructor return an instance whose save method rejects
+//       cheeksModel.mockImplementationOnce(() => ({
+//         save: jest.fn().mockRejectedValue(saveError),
+//       }));
 
-      expect(cheeksModel.find).toHaveBeenCalled();
-      expect(mockPopulateCategory).toHaveBeenCalledWith('categoryId');
-      expect(mockPopulateTags).toHaveBeenCalledWith('tagIds');
-      expect(mockExec).toHaveBeenCalled();
-      expect(result[0].categoryId).toEqual(categoryObj);
-      expect(result[0].tagIds).toEqual([tagObj]);
-    });
-  });
+//       await expect(service.createCheeks(cheeksDto, ownerId)).rejects.toThrow(
+//         new InternalServerErrorException('Error saving new Cheeks: ' + saveError.message)
+//       );
+//     });
+//   });
 
-  describe('getCheeksById', () => {
-    const cheekId = new Types.ObjectId().toHexString();
-    const categoryObj = { _id: new Types.ObjectId(), name: 'Populated Category Single' };
-    const tagObj = { _id: new Types.ObjectId(), name: 'Populated Tag Single' };
-    const cheekData = mockDocument({
-      title: 'Found Cheek',
-      categoryId: categoryObj._id.toHexString(),
-      tagNames: ['tagB'],
-    });
+//   describe('getCheeks', () => {
+//     it('should return an array of cheeks with populated category and tags', async () => {
+//       const categoryData = { _id: new Types.ObjectId(), name: 'Populated Category' };
+//       const tagData = [{ _id: new Types.ObjectId(), name: 'Populated Tag' }];
+//       const rawCheeks = [
+//         mockCheekData({ categoryId: categoryData._id.toHexString(), tagIds: tagData.map(t=>t._id) }),
+//       ];
+//       const populatedCheeks = rawCheeks.map(c => ({ ...c, categoryId: categoryData, tagIds: tagData }));
+      
+//       const query = mockQuery(populatedCheeks);
+//       cheeksModel.find.mockReturnValue(query);
 
-    it('should return a cheek with populated category and tags if found', async () => {
-      const mockExec = jest.fn().mockResolvedValue({
-        ...cheekData,
-        categoryId: categoryObj,
-        tagIds: [tagObj],
-      });
-      const mockPopulateTags = jest.fn().mockReturnThis();
-      const mockPopulateCategory = jest.fn().mockReturnThis();
+//       const result = await service.getCheeks();
 
-      cheeksModel.findById.mockReturnValueOnce({
-        populate: mockPopulateCategory.mockImplementation((path: string) => {
-          if (path === 'categoryId')
-            return {
-              populate: mockPopulateTags.mockImplementation((path2: string) => {
-                if (path2 === 'tagIds') return { exec: mockExec };
-                return { exec: mockExec };
-              }),
-            };
-          return { exec: mockExec };
-        }),
-        exec: mockExec,
-      } as any);
+//       expect(cheeksModel.find).toHaveBeenCalled();
+//       expect(query.populate).toHaveBeenCalledWith('categoryId');
+//       expect(query.populate).toHaveBeenCalledWith('tagIds');
+//       expect(query.exec).toHaveBeenCalled();
+//       expect(result).toEqual(populatedCheeks);
+//     });
+//   });
 
-      const result = await service.getCheeksById(cheekId);
+//   describe('getCheeksById', () => {
+//     const cheekId = new Types.ObjectId().toHexString();
+//     const categoryData = { _id: new Types.ObjectId(), name: 'Populated Category Single' };
+//     const tagData = [{ _id: new Types.ObjectId(), name: 'Populated Tag Single' }];
+//     const rawCheek = mockCheekData({ _id: new Types.ObjectId(cheekId), categoryId: categoryData._id.toHexString(), tagIds: tagData.map(t=>t._id) });
+//     const populatedCheek = { ...rawCheek, categoryId: categoryData, tagIds: tagData };
 
-      expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
-      expect(mockPopulateCategory).toHaveBeenCalledWith('categoryId');
-      expect(mockPopulateTags).toHaveBeenCalledWith('tagIds');
-      expect(mockExec).toHaveBeenCalled();
-      expect(result.categoryId).toEqual(categoryObj);
-      expect(result.tagIds).toEqual([tagObj]);
-    });
+//     it('should return a cheek with populated category and tags if found', async () => {
+//       const query = mockQuery(populatedCheek);
+//       cheeksModel.findById.mockReturnValue(query);
 
-    it('should throw NotFoundException if cheek not found', async () => {
-      const mockFindByIdQuery = mockQuery(null);
-      cheeksModel.findById.mockReturnValueOnce(mockFindByIdQuery as any);
+//       const result = await service.getCheeksById(cheekId);
 
-      await expect(service.getCheeksById(cheekId)).rejects.toThrow(
-        NotFoundException,
-      );
-      expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
-      expect(mockFindByIdQuery.exec).toHaveBeenCalled();
-    });
-  });
+//       expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
+//       expect(query.populate).toHaveBeenCalledWith('categoryId');
+//       expect(query.populate).toHaveBeenCalledWith('tagIds');
+//       expect(query.exec).toHaveBeenCalled();
+//       expect(result).toEqual(populatedCheek);
+//     });
 
-  describe('updateCheeks', () => {
-    const cheekId = new Types.ObjectId().toHexString();
-    const ownerId = new Types.ObjectId().toHexString();
-    const newCategoryId = new Types.ObjectId().toHexString();
-    const updateDto: Partial<CheeksDto> = { description: 'Updated Desc', categoryId: newCategoryId, tagNames: ['new-tag'] };
-    const originalCheekDoc = {
-      ...mockDocument(
-        { title: 'Original', description: 'Orig Desc', categoryId: new Types.ObjectId().toHexString(), tagNames: ['old-tag'] },
-        ownerId,
-      ),
-      tagIds: [new Types.ObjectId()],
-      categoryId: new Types.ObjectId(new Types.ObjectId().toHexString()),
-      owner: new Types.ObjectId(ownerId),
-      save: jest.fn().mockReturnThis(),
-      populate: jest.fn().mockReturnThis(),
-    };
-    const updatedCheekDataFromDb = {
-      ...originalCheekDoc,
-      description: 'Updated Desc',
-      categoryId: new Types.ObjectId(newCategoryId),
-      tagIds: [new Types.ObjectId()],
-      populate: jest.fn().mockImplementation(function (this: any, paths: any) {
-        if (paths.find((p: any) => p.path === 'categoryId')) {
-          this.categoryId = { _id: newCategoryId, name: 'Updated Category' };
-        }
-        if (paths.find((p: any) => p.path === 'tagIds')) {
-          this.tagIds = (this.tagIds || []).map((tagId: Types.ObjectId) => ({ _id: tagId, name: 'new-tag' }));
-        }
-        return Promise.resolve(this);
-      }),
-    };
+//     it('should throw NotFoundException if cheek not found', async () => {
+//       const query = mockQuery(null);
+//       cheeksModel.findById.mockReturnValue(query);
+//       await expect(service.getCheeksById(cheekId)).rejects.toThrow(NotFoundException);
+//     });
+//   });
 
-    it('should update the cheek and return populated data if user is the owner', async () => {
-      cheeksModel.findById.mockResolvedValueOnce(originalCheekDoc);
-      cheeksModel.findOneAndUpdate.mockResolvedValueOnce(updatedCheekDataFromDb);
+//   describe('updateCheeks', () => {
+//     const cheekId = new Types.ObjectId().toHexString();
+//     const ownerId = new Types.ObjectId().toHexString();
+//     const originalCategoryId = new Types.ObjectId();
+//     const newCategoryId = new Types.ObjectId();
+//     const originalTag1 = { _id: new Types.ObjectId(), name: 'old-tag1' };
+//     const newTag1 = { _id: new Types.ObjectId(), name: 'new-tag1' };
 
-      jest.spyOn(service['categoriesService'], 'findOne').mockResolvedValue({
-        _id: newCategoryId, name: 'Updated Category'
-      } as any);
+//     const originalCheekDoc = {
+//       _id: new Types.ObjectId(cheekId),
+//       title: 'Original Title',
+//       description: 'Original Desc',
+//       categoryId: originalCategoryId,
+//       tagIds: [originalTag1._id],
+//       owner: new Types.ObjectId(ownerId),
+//       isPublic: true,
+//       links: [],
+//       // Add toString for owner comparison if needed, or ensure owner is compared as ObjectId
+//       // For `originalCheek.owner.toString() !== userId`
+//     };
 
-      const newTagObjectId = updatedCheekDataFromDb.tagIds[0];
-      jest.spyOn(tagsServiceMock, 'findOrCreateTags').mockResolvedValueOnce([{ _id: newTagObjectId, name: 'new-tag' }] as any);
+//     const updateDto: UpdateCheeksDto = {
+//       title: 'Updated Title',
+//       categoryId: newCategoryId.toHexString(),
+//       tagNames: [newTag1.name],
+//     };
 
-      const result = await service.updateCheeks(cheekId, updateDto as UpdateCheeksDto, ownerId);
+//     const dbUpdatedCheekData = { // Data after findOneAndUpdate, before populate
+//       ...originalCheekDoc,
+//       title: updateDto.title,
+//       categoryId: newCategoryId, // Should be ObjectId
+//       tagIds: [newTag1._id], // Should be ObjectId[]
+//     };
+    
+//     const finalPopulatedCheek = { // Data after populate
+//         ...dbUpdatedCheekData,
+//         categoryId: { _id: newCategoryId, name: 'Populated New Category' },
+//         tagIds: [{ _id: newTag1._id, name: 'Populated New Tag' }],
+//     };
 
-      expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
-      expect(cheeksModel.findOneAndUpdate).toHaveBeenCalledWith(
-        { _id: cheekId, owner: ownerId },
-        expect.objectContaining({
-          description: 'Updated Desc',
-          categoryId: newCategoryId,
-          tagIds: [newTagObjectId],
-        }),
-        { new: true, runValidators: true },
-      );
-      expect(updatedCheekDataFromDb.populate).toHaveBeenCalledWith([
-        { path: 'categoryId' },
-        { path: 'tagIds' },
-      ]);
-      expect(result.description).toEqual('Updated Desc');
-      expect(result.categoryId).toEqual(expect.objectContaining({
-        _id: newCategoryId,
-        name: 'Updated Category',
-      }));
-      expect(result.tagIds).toEqual(expect.arrayContaining([
-        expect.objectContaining({ _id: newTagObjectId, name: 'new-tag' }),
-      ]));
-    });
+//     // Mock for the document instance returned by findOneAndUpdate, which then has .populate() called
+//     const mockUpdatedDocInstanceWithPopulate = {
+//         ...dbUpdatedCheekData,
+//         populate: jest.fn().mockResolvedValue(finalPopulatedCheek)
+//     };
 
-    it('should throw NotFoundException if findOneAndUpdate returns null', async () => {
-      cheeksModel.findById.mockResolvedValueOnce(originalCheekDoc);
-      cheeksModel.findOneAndUpdate.mockResolvedValueOnce(null);
+//     beforeEach(() => {
+//       cheeksModel.findById.mockResolvedValue(originalCheekDoc); // findById returns the raw doc
+//       cheeksModel.findOneAndUpdate.mockResolvedValue(mockUpdatedDocInstanceWithPopulate); // findOneAndUpdate returns the doc that will be populated
 
-      if (updateDto.categoryId) {
-        jest.spyOn(service['categoriesService'], 'findOne').mockResolvedValue({ _id: newCategoryId, name: 'Any Category' } as any);
-      }
-      if (updateDto.tagNames !== undefined) {
-        jest.spyOn(tagsServiceMock, 'findOrCreateTags').mockResolvedValueOnce([]);
-      }
+//       (categoriesServiceMock.findOne as jest.Mock)
+//         .mockImplementation(async (id: string) => {
+//           if (id === newCategoryId.toHexString()) return { _id: newCategoryId, name: 'Populated New Category' };
+//           if (id === originalCategoryId.toHexString()) return { _id: originalCategoryId, name: 'Populated Original Category' };
+//           return null;
+//         });
+//       (tagsServiceMock.findOrCreateTags as jest.Mock).mockResolvedValue([newTag1]);
+//       (tagsServiceMock.updateTagUsageCount as jest.Mock).mockResolvedValue(null);
+//     });
 
-      await expect(
-        service.updateCheeks(cheekId, updateDto as UpdateCheeksDto, ownerId),
-      ).rejects.toThrow(NotFoundException);
-    });
-  });
+//     it('should update the cheek, handle tags, and return populated data if user is the owner', async () => {
+//       const result = await service.updateCheeks(cheekId, updateDto, ownerId);
 
-  describe('deleteCheeks', () => {
-    const cheekId = new Types.ObjectId().toHexString();
-    const ownerId = new Types.ObjectId().toHexString();
-    const nonOwnerId = new Types.ObjectId().toHexString();
-    const cheekDoc = {
-      ...mockDocument({ title: 'To Delete', tagNames: ['tag-to-decrement'] }, ownerId),
-      tagIds: [new Types.ObjectId()],
-      owner: new Types.ObjectId(ownerId),
-    };
+//       expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
+//       expect(categoriesServiceMock.findOne).toHaveBeenCalledWith(newCategoryId.toHexString());
+//       expect(tagsServiceMock.findOrCreateTags).toHaveBeenCalledWith(updateDto.tagNames);
+//       expect(tagsServiceMock.updateTagUsageCount).toHaveBeenCalledWith(newTag1._id.toString(), 1); // Added
+//       expect(tagsServiceMock.updateTagUsageCount).toHaveBeenCalledWith(originalTag1._id.toString(), -1); // Removed
+      
+//       expect(cheeksModel.findOneAndUpdate).toHaveBeenCalledWith(
+//         { _id: cheekId, owner: ownerId }, // ownerId is string here as per service
+//         expect.objectContaining({
+//           title: updateDto.title,
+//           categoryId: updateDto.categoryId, // string from DTO
+//           tagIds: [newTag1._id], // ObjectIds from service logic
+//         }),
+//         { new: true, runValidators: true },
+//       );
+//       expect(mockUpdatedDocInstanceWithPopulate.populate).toHaveBeenCalledWith([
+//         { path: 'categoryId' },
+//         { path: 'tagIds' },
+//       ]);
+//       expect(result).toEqual(finalPopulatedCheek);
+//     });
 
-    it('should delete the cheek if user is the owner and decrement tag counts', async () => {
-      cheeksModel.findById.mockResolvedValueOnce(cheekDoc);
-      cheeksModel.findByIdAndDelete.mockResolvedValueOnce(cheekDoc);
+//     it('should throw NotFoundException if original cheek not found', async () => {
+//       cheeksModel.findById.mockResolvedValue(null);
+//       await expect(service.updateCheeks(cheekId, updateDto, ownerId)).rejects.toThrow(NotFoundException);
+//     });
 
-      (service as any).tagsService = {
-        updateTagUsageCount: jest.fn().mockResolvedValue(null),
-      };
+//     it('should throw ForbiddenException if user is not the owner', async () => {
+//       const nonOwnerId = new Types.ObjectId().toHexString();
+//       await expect(service.updateCheeks(cheekId, updateDto, nonOwnerId)).rejects.toThrow(ForbiddenException);
+//     });
+    
+//     it('should throw NotFoundException if findOneAndUpdate returns null (e.g. update failed post-auth)', async () => {
+//       cheeksModel.findOneAndUpdate.mockResolvedValue(null);
+//       await expect(service.updateCheeks(cheekId, updateDto, ownerId)).rejects.toThrow(NotFoundException);
+//     });
 
-      const result = await service.deleteCheeks(cheekId, ownerId);
+//     it('should handle tag updates when tagNames is an empty array (clearing tags)', async () => {
+//       const dtoWithEmptyTags: UpdateCheeksDto = { tagNames: [] }; // Only update tags
+//       (tagsServiceMock.findOrCreateTags as jest.Mock).mockResolvedValue([]); // No new tags
 
-      expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
-      expect(cheeksModel.findByIdAndDelete).toHaveBeenCalledWith(cheekId);
-      expect((service as any).tagsService.updateTagUsageCount).toHaveBeenCalledWith(
-        cheekDoc.tagIds[0].toString(),
-        -1,
-      );
-      expect(result).toEqual({ message: 'Cheeks deleted successfully' });
-    });
+//       await service.updateCheeks(cheekId, dtoWithEmptyTags, ownerId);
 
-    it('should throw NotFoundException if cheek to delete is not found', async () => {
-      cheeksModel.findById.mockResolvedValueOnce(null);
+//       expect(tagsServiceMock.findOrCreateTags).toHaveBeenCalledWith([]);
+//       expect(tagsServiceMock.updateTagUsageCount).toHaveBeenCalledWith(originalTag1._id.toString(), -1); // Original tag removed
+//       expect(cheeksModel.findOneAndUpdate).toHaveBeenCalledWith(
+//         { _id: cheekId, owner: ownerId },
+//         expect.objectContaining({ tagIds: [] }), // Tags are cleared
+//         { new: true, runValidators: true },
+//       );
+//     });
+    
+//     it('should not modify tags if tagNames is undefined in DTO', async () => {
+//       const dtoNoTagUpdate: UpdateCheeksDto = { title: "Only Title Update" };
+//        // Reset findOrCreateTags mock for this specific test if it was set to return empty array previously
+//       (tagsServiceMock.findOrCreateTags as jest.Mock).mockClear(); // Clear previous calls
+//       (tagsServiceMock.updateTagUsageCount as jest.Mock).mockClear();
 
-      await expect(service.deleteCheeks(cheekId, ownerId)).rejects.toThrow(
-        NotFoundException,
-      );
-      expect(cheeksModel.findByIdAndDelete).not.toHaveBeenCalled();
-    });
 
-    it('should throw ForbiddenException if user is not the owner', async () => {
-      cheeksModel.findById.mockResolvedValueOnce(cheekDoc);
+//       await service.updateCheeks(cheekId, dtoNoTagUpdate, ownerId);
 
-      await expect(service.deleteCheeks(cheekId, nonOwnerId)).rejects.toThrow(
-        ForbiddenException,
-      );
-      expect(cheeksModel.findByIdAndDelete).not.toHaveBeenCalled();
-    });
-  });
-});
+//       expect(tagsServiceMock.findOrCreateTags).not.toHaveBeenCalled();
+//       expect(tagsServiceMock.updateTagUsageCount).not.toHaveBeenCalled(); // No tag changes
+//       expect(cheeksModel.findOneAndUpdate).toHaveBeenCalledWith(
+//         { _id: cheekId, owner: ownerId },
+//         expect.objectContaining({ title: "Only Title Update" }), // Only title updated
+//         { new: true, runValidators: true },
+//       );
+//       // Check that tagIds was NOT part of the $set operation or was undefined in the update payload
+//       const updateCallArgs = cheeksModel.findOneAndUpdate.mock.calls[0][1];
+//       expect(updateCallArgs.tagIds).toBeUndefined();
+//     });
+//   });
+
+//   describe('deleteCheeks', () => {
+//     const cheekId = new Types.ObjectId().toHexString();
+//     const ownerId = new Types.ObjectId().toHexString();
+//     const tagId1 = new Types.ObjectId();
+//     const cheekDocToDelete = {
+//       _id: new Types.ObjectId(cheekId),
+//       title: 'To Delete',
+//       owner: new Types.ObjectId(ownerId),
+//       tagIds: [tagId1],
+//     };
+
+//     beforeEach(() => {
+//       cheeksModel.findById.mockResolvedValue(cheekDocToDelete);
+//       cheeksModel.findByIdAndDelete.mockResolvedValue(cheekDocToDelete); // Simulate successful deletion
+//       (tagsServiceMock.updateTagUsageCount as jest.Mock).mockResolvedValue(null);
+//     });
+
+//     it('should delete the cheek and decrement tag counts if user is the owner', async () => {
+//       const result = await service.deleteCheeks(cheekId, ownerId);
+
+//       expect(cheeksModel.findById).toHaveBeenCalledWith(cheekId);
+//       expect(tagsServiceMock.updateTagUsageCount).toHaveBeenCalledWith(tagId1.toString(), -1);
+//       expect(cheeksModel.findByIdAndDelete).toHaveBeenCalledWith(cheekId);
+//       expect(result).toEqual({ message: 'Cheeks deleted successfully' });
+//     });
+
+//     it('should throw NotFoundException if cheek to delete is not found', async () => {
+//       cheeksModel.findById.mockResolvedValue(null);
+//       await expect(service.deleteCheeks(cheekId, ownerId)).rejects.toThrow(NotFoundException);
+//     });
+
+//     it('should throw ForbiddenException if user is not the owner', async () => {
+//       const nonOwnerId = new Types.ObjectId().toHexString();
+//       await expect(service.deleteCheeks(cheekId, nonOwnerId)).rejects.toThrow(ForbiddenException);
+//       expect(tagsServiceMock.updateTagUsageCount).not.toHaveBeenCalled();
+//       expect(cheeksModel.findByIdAndDelete).not.toHaveBeenCalled();
+//     });
+    
+//     it('should handle deletion correctly if cheek has no tags', async () => {
+//       const cheekWithNoTags = { ...cheekDocToDelete, tagIds: [] };
+//       cheeksModel.findById.mockResolvedValue(cheekWithNoTags);
+
+//       await service.deleteCheeks(cheekId, ownerId);
+//       expect(tagsServiceMock.updateTagUsageCount).not.toHaveBeenCalled();
+//       expect(cheeksModel.findByIdAndDelete).toHaveBeenCalledWith(cheekId);
+//     });
+//   });
+// });

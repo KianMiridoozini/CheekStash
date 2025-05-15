@@ -1,8 +1,58 @@
-<nav>
-    <a routerLink="/">Home</a>
-    <a routerLink="/login">Login</a>
-    <a routerLink="/register">Register</a>
-    <a routerLink="/profile">Profile</a>
-    <a routerLink="/collections">Collections</a>
-  </nav>
-  
+<div class="navbar bg-base-200 text-base-content shadow-md">
+  <!-- Navbar Start (Brand ONLY) -->
+  <div class="navbar-start">
+    <!-- Brand -->
+    <a routerLink="/" class="btn btn-ghost text-xl normal-case px-3 items-center">
+      <img src="assets/images/cheekstash-logo.svg" alt="CheekStash Logo" class="h-10 sm:h-12 mr-2 w-auto">
+      <span class="hidden sm:inline font-semibold">CheekStash</span>
+    </a>
+  </div>
+
+  <!-- Navbar Center (Desktop Main Links) -->
+  <div class="navbar-center hidden lg:flex">
+    <ul class="menu menu-horizontal p-0 gap-6">
+      <li><a routerLink="/home" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Home</a></li>
+      <li><a routerLink="/cheeks" routerLinkActive="active">Cheeks</a></li>
+    </ul>
+  </div>
+
+  <!-- Navbar End (Mobile Dropdown AND Desktop Auth/User Links) -->
+  <div class="navbar-end">
+    <!-- Desktop Auth/User Links (visible on lg and up) -->
+    <ul class="menu menu-horizontal p-0 items-center hidden lg:flex">
+      <li *ngIf="isAdmin()"><a routerLink="/admin" routerLinkActive="active" class="btn btn-ghost btn-sm">Admin</a></li>
+      <ng-container *ngIf="authService.isAuthenticated(); else desktopLoggedOutActions">
+        <li><a routerLink="/profile" routerLinkActive="active" class="btn btn-ghost btn-sm">Profile ({{ authService.currentUserSignal()?.username }})</a></li>
+        <li><button class="btn btn-ghost btn-sm" (click)="logout()">Logout</button></li>
+      </ng-container>
+      <ng-template #desktopLoggedOutActions>
+        <li><a routerLink="/login" routerLinkActive="active" class="btn btn-ghost btn-sm">Login</a></li>
+        <li><a routerLink="/register" routerLinkActive="active" class="btn btn-ghost btn-sm">Register</a></li>
+      </ng-template>
+    </ul>
+
+    <!-- Mobile Dropdown Menu (visible on screens smaller than lg, aligned to end) -->
+    <div class="dropdown dropdown-end lg:hidden">
+      <label tabindex="0" class="btn btn-ghost lg:hidden">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h8m-8 6h16" /></svg>
+      </label>
+      <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[100] p-2 shadow bg-base-100 rounded-box w-52">
+        <li><a routerLink="/home" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}">Home</a></li>
+        <li><a routerLink="/cheeks" routerLinkActive="active">Cheeks</a></li>
+        
+        <div class="divider my-1" *ngIf="authService.isAuthenticated() || isAdmin()"></div>
+        
+        <li *ngIf="isAdmin()"><a routerLink="/admin" routerLinkActive="active">Admin Panel</a></li>
+        
+        <ng-container *ngIf="authService.isAuthenticated(); else mobileLoggedOutActions">
+          <li><a routerLink="/profile" routerLinkActive="active">Profile ({{ authService.currentUserSignal()?.username }})</a></li>
+          <li><button class="btn btn-ghost btn-sm w-full justify-start" (click)="logout()">Logout</button></li>
+        </ng-container>
+        <ng-template #mobileLoggedOutActions>
+          <li><a routerLink="/login" routerLinkActive="active">Login</a></li>
+          <li><a routerLink="/register" routerLinkActive="active">Register</a></li>
+        </ng-template>
+      </ul>
+    </div>
+  </div>
+</div>
