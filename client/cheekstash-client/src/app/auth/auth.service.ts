@@ -23,9 +23,13 @@ export class AuthService {
   currentUserSignal: WritableSignal<User | null> = signal(null);
 
   constructor(private http: HttpClient) {
-    if (this.isAuthenticated()) {
-      this.fetchAndStoreUserProfile();
-    }
+    // Defer the initial profile fetch to break the circular dependency
+    // during the construction phase of services and interceptors.
+    setTimeout(() => {
+      if (this.isAuthenticated()) {
+        this.fetchAndStoreUserProfile();
+      }
+    }, 0);
 
     effect(() => {
       // console.log('Current user from signal (AuthService effect):', this.currentUserSignal());
@@ -49,11 +53,19 @@ export class AuthService {
   private fetchAndStoreUserProfile() {
     this.http.get<User>(`${this.apiUrl}/auth/me`).subscribe({
       next: (user) => {
-        this.currentUserSignal.set(user);
+        // Ensure user object has id, map _id if necessary
+        const userWithId = { ...user, id: user.id || (user as any)._id };
+        this.currentUserSignal.set(userWithId);
       },
       error: (err) => {
         console.error('Failed to fetch user profile:', err);
-        this.clearUserSession();
+        // Only clear session if it's an authentication error (e.g., 401)
+        if (err.status === 401) {
+          this.clearUserSession();
+        }
+        // For other errors, the token might still be valid, so don't clear it.
+        // The currentUserSignal might remain null or stale if the fetch fails,
+        // and the application should handle this gracefully.
       }
     });
   }

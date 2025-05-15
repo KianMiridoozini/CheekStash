@@ -24,6 +24,21 @@ export class ChangePasswordModalComponent {
     errorMessage: string | null = null;
     isLoading = false;
 
+    // Helper methods for password validation messages
+    hasNumber(password: string): boolean {
+        return /\d/.test(password);
+    }
+
+    hasLetter(password: string): boolean {
+        return /[a-zA-Z]/.test(password);
+    }
+
+    // Method to trigger validation for new password (optional, if not using ngModelChange directly in template for all checks)
+    validateNewPassword(): void {
+        // This method can be expanded if more complex validation logic is needed in the component
+        // For now, the template handles most of it with pattern and minlength
+    }
+
     onSubmit(): void {
         if (this.payload.newPassword !== this.confirmNewPassword) {
             this.errorMessage = 'New passwords do not match.';
