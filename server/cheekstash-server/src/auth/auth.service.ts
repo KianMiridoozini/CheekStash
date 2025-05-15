@@ -45,6 +45,18 @@ export class AuthService {
     return { token, username: user.username };
   }
 
+  /**
+   * Get user profile by ID (typically from JWT payload).
+   */
+  async getUserProfile(userId: string): Promise<Omit<UserDocument, 'passwordHash'>> {
+    const user = await this.usersService.findById(userId);
+    assertUserFound(user); // Ensures user is not null or undefined
+    // The 'user' object from usersService.findById is already a plain object
+    // with passwordHash removed by the _toUserObject helper in UsersService.
+    // Therefore, no need to call .toObject() or destructure passwordHash here.
+    return user;
+  }
+
   async changePassword(
     userId: string,
     changePasswordDto: ChangePasswordDto,
