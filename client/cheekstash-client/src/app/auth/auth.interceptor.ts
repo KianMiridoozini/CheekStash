@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, Injector } from '@angular/core'; // Import Injector
 import {
     HttpRequest,
     HttpHandler,
@@ -6,16 +6,22 @@ import {
     HttpInterceptor
 } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { AuthService } from './auth.service'; 
+import { AuthService } from './auth.service';
 
 @Injectable()
 export class AuthInterceptor implements HttpInterceptor {
+    private authService?: AuthService;
 
-    constructor(private authService: AuthService) {
+    constructor(private injector: Injector) { // Inject Injector instead of AuthService directly
         // console.log('AuthInterceptor constructed');
     }
 
     intercept(request: HttpRequest<unknown>, next: HttpHandler): Observable<HttpEvent<unknown>> {
+        // Lazily get AuthService from the Injector
+        if (!this.authService) {
+            this.authService = this.injector.get(AuthService);
+        }
+        
         // console.log('AuthInterceptor: Intercepting request to:', request.url);
         const authToken = this.authService.getToken();
         // console.log('AuthInterceptor: Token from AuthService:', authToken);
