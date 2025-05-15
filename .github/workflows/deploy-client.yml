@@ -1,0 +1,54 @@
+name: Deploy Client to GitHub Pages
+
+on:
+  push:
+    branches:
+      - Develop # Or your default branch, e.g., master
+    paths: # Optional: Only run if client code changes
+      - 'client/cheekstash-client/**'
+      - '.github/workflows/deploy-client.yml' # So changes to the workflow itself trigger a run
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Allow actions-gh-pages to push to the gh-pages branch
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18' # Use a version compatible with your Angular project
+          cache: 'npm'
+          cache-dependency-path: 'client/cheekstash-client/package-lock.json' # Or yarn.lock
+
+      - name: Install Angular CLI
+        run: npm install -g @angular/cli
+
+      - name: Install client dependencies
+        working-directory: ./client/cheekstash-client
+        run: npm ci # or yarn install --frozen-lockfile
+
+      - name: Build Angular App
+        working-directory: ./client/cheekstash-client
+        # Replace <your-repo-name> with your actual repository name.
+        # Alternatively, use ${{ github.event.repository.name }} if your repo name is simple
+        # and doesn't require special handling for the base-href.
+        run: ng build --configuration production --base-href /${{ github.event.repository.name }}/
+        # If you used a package.json script:
+        # run: npm run build:gh-pages
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./client/cheekstash-client/dist/cheekstash-client # Adjust if your Angular output dir is different
+          # publish_branch: gh-pages # Default is gh-pages
+          # user_name: 'github-actions[bot]' # Default
+          # user_email: 'github-actions[bot]@users.noreply.github.com' # Default
+          # cname: your.custom.domain # If you have a custom domain
+          # The action can create a 404.html redirector for SPAs if one doesn't exist in publish_dir
