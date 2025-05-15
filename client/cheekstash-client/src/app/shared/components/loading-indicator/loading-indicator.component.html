@@ -1,0 +1,9 @@
+<div [ngClass]="{
+    'fixed inset-0 flex flex-col justify-center items-center bg-base-100/90 z-50': fullPageStyle, 
+    'inline-flex items-center': !fullPageStyle
+    }">
+    <span class="loading loading-spinner text-primary self-center" [ngClass]="spinnerSizeClass"></span>
+    <p *ngIf="message" [ngClass]="textDynamicClasses">
+        {{ message }}
+    </p>
+</div>

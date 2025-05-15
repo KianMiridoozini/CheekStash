@@ -1,0 +1,181 @@
+<div class="container mx-auto p-4 sm:p-6 lg:p-8">
+    <!-- Loading State -->
+    <app-loading-indicator *ngIf="isLoading && !error" [message]="'Loading cheek details...'" [size]="'lg'"
+        [fullPageStyle]="true">
+    </app-loading-indicator>
+
+    <!-- Error State -->
+    <div *ngIf="error && !isLoading" class="alert alert-error shadow-lg max-w-lg mx-auto">
+        <div class="flex-1">
+            <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none"
+                viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>{{ error }}</span>
+        </div>
+        <div class="flex-none">
+            <a routerLink="/cheeks" class="btn btn-sm btn-ghost">Back to List</a>
+        </div>
+    </div>
+
+    <!-- Cheek Details -->
+    <div *ngIf="cheek && !isLoading && !error" class="card lg:card-side bg-base-100 shadow-xl">
+        <div class="card-body">
+            <h1 class="card-title text-3xl lg:text-4xl mb-2">{{ cheek.title }}</h1>
+            <p *ngIf="cheek.description" class="text-base-content/80 mb-4 prose">{{ cheek.description }}</p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 mb-6 text-sm">
+                <div>
+                    <strong class="text-base-content/90 block mb-0.5">Category:</strong>
+                    <span *ngIf="cheek.categoryId?.name" class="badge badge-primary">{{ cheek.categoryId.name }}</span>
+                    <span *ngIf="!cheek.categoryId?.name" class="text-base-content/50 italic">N/A</span>
+                </div>
+                <div>
+                    <strong class="text-base-content/90 block mb-0.5">User:</strong>
+                    <ng-container
+                        *ngIf="isOwnerUsernameLinkable && ownerUsername && !ownerUsername.startsWith('User ID:')">
+                        <a [routerLink]="['/users', ownerUsername]" class="link link-hover">{{ ownerUsername }}</a>
+                    </ng-container>
+                    <ng-container
+                        *ngIf="!isOwnerUsernameLinkable || (ownerUsername && ownerUsername.startsWith('User ID:'))">
+                        <span>{{ ownerUsername }}</span>
+                    </ng-container>
+                    <!-- Consider adding a link to owner's profile if applicable -->
+                </div>
+                <div *ngIf="isOwner && cheek && routeUsername">
+                    <strong class="text-base-content/90 block mb-0.5">Visibility:</strong>
+                    <span class="badge {{ cheek.isPublic ? 'badge-success' : 'badge-warning' }}">
+                        {{ cheek.isPublic ? 'Public' : 'Private' }}
+                    </span>
+                </div>
+                <div *ngIf="cheek.tags && cheek.tags.length > 0">
+                    <strong class="text-base-content/90 block mb-0.5">Tags:</strong>
+                    <div class="flex flex-wrap gap-1 mt-1">
+                        <span *ngFor="let tag of cheek.tags" class="badge badge-outline badge-accent">{{ tag.name
+                            }}</span>
+                    </div>
+                </div>
+                <div *ngIf="!cheek.tags || cheek.tags.length === 0">
+                    <strong class="text-base-content/90 block mb-0.5">Tags:</strong>
+                    <span class="text-base-content/50 italic">None</span>
+                </div>
+                <div *ngIf="isOwner && cheek && routeUsername">
+                    <strong class="text-base-content/90 block mb-0.5">Created:</strong>
+                    <span>{{ cheek.createdAt | date:'dd/MM/yyyy' }}</span>
+                </div>
+                <div>
+                    <strong class="text-base-content/90 block mb-0.5">Last Updated:</strong>
+                    <span>{{ cheek.updatedAt | date:'dd/MM/yyyy' }}</span>
+                </div>
+            </div>
+
+            <h2 class="text-xl font-semibold mt-6 mb-3 text-base-content/90">
+                Links <span class="text-base-content/50 text-lg">({{cheek.links.length || 0}})</span>
+            </h2>
+            <div *ngIf="cheek.links && cheek.links.length > 0; else noLinks" class="space-y-3">
+                <div *ngFor="let link of cheek.links; let i = index"
+                    class="p-4 border border-base-300 rounded-lg hover:shadow-md transition-shadow bg-base-200/30">
+                    <h3 class="font-semibold text-primary text-lg">
+                        <a [href]="formatLinkUrl(link.url)" target="_blank" rel="noopener noreferrer"
+                            class="link link-hover break-all">
+                            {{ i + 1 }}. {{ link.title || 'Untitled Link' }}
+                            <svg xmlns="http://www.w3.org/2000/svg"
+                                class="h-4 w-4 inline-block ml-1 opacity-70 relative -top-px" fill="none"
+                                viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                    d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                        </a>
+                    </h3>
+                    <p *ngIf="link.description" class="text-sm text-base-content/70 mt-1 prose prose-sm">{{
+                        link.description }}</p>
+                    <p class="text-xs text-base-content/50 break-all mt-1">{{ link.url }}</p>
+                </div>
+            </div>
+            <ng-template #noLinks>
+                <p class="text-base-content/70 italic">No links have been added to this cheek yet.</p>
+            </ng-template>
+
+            <div class="card-actions justify-end mt-8 items-center">
+                <a routerLink="/cheeks" class="btn btn-outline">Back to List</a>
+
+                <!-- Actions Dropdown/Toggle for Owner -->
+                <div *ngIf="isOwner && cheek && routeUsername" class="relative">
+                    <details class="dropdown dropdown-end">
+                        <summary class="m-1 btn btn-neutral">Actions</summary>
+                        <ul class="p-2 shadow menu dropdown-content z-[1] bg-base-100 rounded-box w-52">
+                            <li>
+                                <a [routerLink]="[ '/cheeks', routeUsername, cheek.slug, 'edit' ]"
+                                    class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900">
+                                    <span class="flex items-center text-primary">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20"
+                                            fill="currentColor">
+                                            <path
+                                                d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+                                            <path fill-rule="evenodd"
+                                                d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z"
+                                                clip-rule="evenodd" />
+                                        </svg>
+                                        Edit Cheek
+                                    </span>
+                                </a>
+                            </li>
+                            <li>
+                                <button (click)="confirmDeleteCheek()"
+                                    class="block w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-100 hover:text-red-900">
+                                    <span class="flex items-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20"
+                                            fill="currentColor">
+                                            <path fill-rule="evenodd"
+                                                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                                clip-rule="evenodd" />
+                                        </svg>
+                                        Delete Cheek
+                                    </span>
+                                </button>
+                            </li>
+                        </ul>
+                    </details>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Reviews Section -->
+    <div *ngIf="cheek && cheek._id && !isLoading && !error" class="mt-8">
+        <!-- Add Review Button and Form -->
+        <div *ngIf="canAddReview && !isOwner" class="mb-6">
+            <button *ngIf="!showAddReviewForm" (click)="toggleAddReviewForm()" class="btn btn-primary">
+                Write a Review
+            </button>
+            <app-review-form *ngIf="showAddReviewForm && cheek && cheek._id" [cheekId]="cheek._id"
+                (reviewSubmitted)="handleReviewSubmitted($event)" (closeForm)="handleReviewFormClosed()">
+            </app-review-form>
+        </div>
+        <div *ngIf="!currentUser && cheek && !isOwner" class="mb-6 p-4 bg-base-200 rounded-md text-center">
+            <p class="text-base-content/70">Please <a routerLink="/login" class="link link-primary">log in</a> to write
+                a review.</p>
+        </div>
+
+        <!-- Review List -->
+        <app-review-list [cheekId]="cheek._id" (reviewUpdated)="handleReviewUpdated($event)"
+            (reviewDeleted)="handleReviewDeleted($event)" (userHasReviewed)="handleUserHasReviewed($event)">
+            <!-- Added userHasReviewed output binding -->
+        </app-review-list>
+    </div>
+
+    <!-- Custom Delete Confirmation Pop-up -->
+    <div *ngIf="showDeleteConfirmation"
+        class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex justify-center items-center z-50 p-4">
+        <div class="bg-base-100 p-6 rounded-lg shadow-xl max-w-md w-full">
+            <h3 class="text-xl font-semibold mb-4 text-error">Confirm Deletion</h3>
+            <p class="mb-6 text-base-content/80">Are you sure you want to delete the cheek "<strong>{{ cheek?.title
+                    }}</strong>"? This action cannot be undone.</p>
+            <div class="flex justify-end space-x-3">
+                <button (click)="cancelDelete()" class="btn btn-ghost">Cancel</button>
+                <button (click)="proceedWithDelete()" class="btn btn-error">Delete</button>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,33 @@
+<div class="modal modal-open modal-bottom sm:modal-middle">
+    <div class="modal-box">
+        <button (click)="close()" class="btn btn-sm btn-circle btn-ghost absolute right-2 top-2">✕</button>
+        <h3 class="font-bold text-lg text-error">Delete Your Account</h3>
+        <p class="py-4">Are you absolutely sure you want to delete your account? This action is irreversible and will
+            permanently delete all your data, including your profile, cheeks, and reviews.</p>
+
+        <form (ngSubmit)="onSubmit()" #deleteAccountForm="ngForm" class="space-y-4 py-4">
+            <div>
+                <label for="confirmPassword" class="label">
+                    <span class="label-text font-semibold">To confirm, please enter your current password:</span>
+                </label>
+                <input type="password" id="confirmPassword" name="confirmPassword" class="input input-bordered w-full"
+                    [(ngModel)]="payload.password" #passwordInput="ngModel" required minlength="8">
+                <div *ngIf="passwordInput.invalid && (passwordInput.dirty || passwordInput.touched)"
+                    class="text-error text-xs mt-1">
+                    <span *ngIf="passwordInput.errors?.['required']">Password is required.</span>
+                    <span *ngIf="passwordInput.errors?.['minlength']">Password must be at least 8 characters.</span>
+                </div>
+            </div>
+
+            <app-message [message]="errorMessage" type="error"></app-message>
+
+            <div class="modal-action">
+                <button type="button" (click)="close()" class="btn btn-ghost">Cancel</button>
+                <button type="submit" class="btn btn-error" [disabled]="deleteAccountForm.invalid || isLoading">
+                    <app-loading-indicator *ngIf="isLoading" [message]="'Deleting...'" [size]="'xs'"></app-loading-indicator>
+                    <span *ngIf="!isLoading">Delete Account Permanently</span>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
