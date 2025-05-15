@@ -17,6 +17,7 @@ const mockUsersService = {
   findById: jest.fn(),
   create: jest.fn(),
   updateProfile: jest.fn(),
+  uploadProfileImage: jest.fn(), // Added for uploadProfileImage
 };
 
 // Mock Request object for protected routes
@@ -185,5 +186,57 @@ describe('UsersController', () => {
     // Add tests for cases where updateProfile might throw errors,
     // although those errors originate in the service which is already tested.
     // Focus here is on the controller calling the service correctly.
+  });
+
+  // --- Test uploadProfileImage ---
+  describe('uploadProfileImage', () => {
+    const requestingUser = {
+      id: new Types.ObjectId().toHexString(),
+      role: 'user',
+    };
+    const req = mockRequest(requestingUser);
+    const mockFile = {
+      fieldname: 'file',
+      originalname: 'avatar.jpg',
+      encoding: '7bit',
+      mimetype: 'image/jpeg',
+      size: 12345,
+      buffer: Buffer.from('mock file content'), // Mock buffer
+    } as any; // Using 'any' for simplicity, or create a proper mock type
+
+    const updatedUserDoc = {
+      _id: new Types.ObjectId(requestingUser.id),
+      username: 'testUser',
+      email: 'test@example.com',
+      role: 'user',
+      profile: {
+        displayName: 'Test User',
+        bio: 'A bio',
+        avatarUrl: 'http://example.com/new-avatar.jpg',
+      },
+    };
+
+    it('should call service.uploadProfileImage and return mapped UserResponseDto', async () => {
+      mockUsersService.uploadProfileImage.mockResolvedValueOnce(updatedUserDoc);
+
+      const result: UserResponseDto = await controller.uploadProfileImage(
+        mockFile,
+        req,
+      );
+
+      expect(service.uploadProfileImage).toHaveBeenCalledWith(
+        requestingUser.id,
+        mockFile,
+      );
+      expect(result).toEqual({
+        id: requestingUser.id,
+        username: updatedUserDoc.username,
+        email: updatedUserDoc.email,
+        displayName: updatedUserDoc.profile.displayName,
+        bio: updatedUserDoc.profile.bio,
+        avatarUrl: updatedUserDoc.profile.avatarUrl,
+        role: updatedUserDoc.role,
+      });
+    });
   });
 });

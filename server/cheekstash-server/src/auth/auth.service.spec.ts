@@ -16,18 +16,6 @@ import * as bcrypt from 'bcrypt'; // Keep standard import if needed elsewhere
 import { Types } from 'mongoose';
 import { ChangePasswordDto } from '../users/dto/change-password.dto';
 
-// // Mock UsersService methods used by AuthService
-// const mockUsersService = {
-//   findByEmail: jest.fn(),
-//   changePassword: jest.fn(),
-//   deleteUser: jest.fn(),
-// };
-
-// // Mock JwtService
-// const mockJwtService = {
-//   sign: jest.fn(),
-// };
-
 describe('AuthService', () => {
   let service: AuthService;
   let usersService: UsersService;

@@ -34,8 +34,6 @@ const mockDocument = (dto: any = {}, userId?: string, username?: string, cheekId
     deleteOne: jest.fn().mockResolvedValue({ acknowledged: true, deletedCount: 1 }),
     toString: jest.fn().mockReturnValue(JSON.stringify({ ...dto, _id: dto._id, userId, username, cheekId })),
   };
-  // Add Object.assign mock if service uses it
-   Object.assign(doc, dto); // Simulate Object.assign behavior if needed
   return doc;
 };
 
@@ -135,10 +133,13 @@ describe('ReviewsService', () => {
 
     it('should throw InternalServerErrorException if save fails', async () => {
         // Arrange
-        const error = new Error('Database error');
+        const errorMessage = 'Database error';
+        const error = new Error(errorMessage);
         const mockSave = jest.fn().mockRejectedValue(error);
         reviewModel.mockImplementationOnce(() => ({
-            ...createDto,
+            cheekId: createDto.cheekId,
+            rating: createDto.rating,
+            review: createDto.review,
             userId,
             username,
             save: mockSave,
@@ -146,7 +147,8 @@ describe('ReviewsService', () => {
 
         // Act & Assert
         await expect(service.createReview(createDto, userId, username))
-            .rejects.toThrow(InternalServerErrorException);
+            .rejects
+            .toThrow(new InternalServerErrorException(`Failed to create review: ${errorMessage}`));
     });
   });
 
