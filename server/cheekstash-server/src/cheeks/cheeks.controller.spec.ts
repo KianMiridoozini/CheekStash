@@ -6,6 +6,7 @@ import { CheeksService } from './cheeks.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CheeksDto } from './dto/cheeks.dto';
 import { UpdateCheeksDto } from './dto/update-cheeks.dto';
+import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
 
 // Mock CheeksService
 const mockCheeksService = {
@@ -78,6 +79,14 @@ describe('CheeksController', () => {
       expect(service.createCheeks).toHaveBeenCalledWith(cheeksDto, userPayload.id);
       expect(result).toEqual(createdCheek);
     });
+
+    it('should propagate errors from the service when creation fails', async () => {
+      const error = new InternalServerErrorException('Creation failed');
+      mockCheeksService.createCheeks.mockRejectedValueOnce(error);
+
+      await expect(controller.create(cheeksDto, req)).rejects.toThrow(InternalServerErrorException);
+      expect(service.createCheeks).toHaveBeenCalledWith(cheeksDto, userPayload.id);
+    });
   });
 
   // --- Test findAll ---
@@ -93,6 +102,14 @@ describe('CheeksController', () => {
       // Assert
       expect(service.getCheeks).toHaveBeenCalled();
       expect(result).toEqual(expectedCheeks);
+    });
+
+    it('should propagate errors from the service when finding all fails', async () => {
+      const error = new InternalServerErrorException('Failed to get cheeks');
+      mockCheeksService.getCheeks.mockRejectedValueOnce(error);
+
+      await expect(controller.findAll()).rejects.toThrow(InternalServerErrorException);
+      expect(service.getCheeks).toHaveBeenCalled();
     });
   });
 
@@ -111,6 +128,14 @@ describe('CheeksController', () => {
       // Assert
       expect(service.getCheeksById).toHaveBeenCalledWith(cheekId);
       expect(result).toEqual(expectedCheek);
+    });
+
+    it('should propagate NotFoundException from the service if cheek is not found', async () => {
+      const error = new NotFoundException('Cheek not found');
+      mockCheeksService.getCheeksById.mockRejectedValueOnce(error);
+
+      await expect(controller.findOne(cheekId)).rejects.toThrow(NotFoundException);
+      expect(service.getCheeksById).toHaveBeenCalledWith(cheekId);
     });
   });
 
@@ -133,6 +158,14 @@ describe('CheeksController', () => {
       expect(service.updateCheeks).toHaveBeenCalledWith(cheekId, updateDto, userPayload.id);
       expect(result).toEqual(updatedCheek);
     });
+
+    it('should propagate errors from the service when update fails', async () => {
+      const error = new InternalServerErrorException('Update failed');
+      mockCheeksService.updateCheeks.mockRejectedValueOnce(error);
+
+      await expect(controller.update(cheekId, updateDto, req)).rejects.toThrow(InternalServerErrorException);
+      expect(service.updateCheeks).toHaveBeenCalledWith(cheekId, updateDto, userPayload.id);
+    });
   });
 
   // --- Test remove ---
@@ -152,6 +185,14 @@ describe('CheeksController', () => {
         // Assert
         expect(service.deleteCheeks).toHaveBeenCalledWith(cheekId, userPayload.id);
         expect(result).toEqual(deleteResult);
+    });
+
+    it('should propagate errors from the service when deletion fails', async () => {
+      const error = new InternalServerErrorException('Deletion failed');
+      mockCheeksService.deleteCheeks.mockRejectedValueOnce(error);
+
+      await expect(controller.remove(cheekId, req)).rejects.toThrow(InternalServerErrorException);
+      expect(service.deleteCheeks).toHaveBeenCalledWith(cheekId, userPayload.id);
     });
   });
 });

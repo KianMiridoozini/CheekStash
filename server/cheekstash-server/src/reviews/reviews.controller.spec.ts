@@ -6,6 +6,7 @@ import { ReviewsService } from './reviews.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
+import { InternalServerErrorException, NotFoundException, ForbiddenException } from '@nestjs/common';
 
 // Mock ReviewsService
 const mockReviewsService = {
@@ -67,6 +68,14 @@ describe('ReviewsController', () => {
         expect(service.createReview).toHaveBeenCalledWith(createDto, userPayload.id, userPayload.username);
         expect(result).toEqual(createdReview);
     });
+
+    it('should propagate errors from the service when creation fails', async () => {
+      const error = new InternalServerErrorException('Creation failed');
+      mockReviewsService.createReview.mockRejectedValueOnce(error);
+
+      await expect(controller.createReview(createDto, req)).rejects.toThrow(InternalServerErrorException);
+      expect(service.createReview).toHaveBeenCalledWith(createDto, userPayload.id, userPayload.username);
+    });
   });
 
   // --- Test getReviews ---
@@ -84,6 +93,14 @@ describe('ReviewsController', () => {
         // Assert
         expect(service.getReviewsForCheeks).toHaveBeenCalledWith(cheekId);
         expect(result).toEqual(expectedReviews);
+    });
+
+    it('should propagate errors from the service when fetching reviews fails', async () => {
+      const error = new InternalServerErrorException('Failed to fetch reviews');
+      mockReviewsService.getReviewsForCheeks.mockRejectedValueOnce(error);
+
+      await expect(controller.getReviews(cheekId)).rejects.toThrow(InternalServerErrorException);
+      expect(service.getReviewsForCheeks).toHaveBeenCalledWith(cheekId);
     });
   });
 
@@ -106,6 +123,22 @@ describe('ReviewsController', () => {
         expect(service.updateReview).toHaveBeenCalledWith(reviewId, updateDto, userPayload.id);
         expect(result).toEqual(updatedReview);
     });
+
+    it('should propagate NotFoundException from the service if review is not found for update', async () => {
+      const error = new NotFoundException('Review not found');
+      mockReviewsService.updateReview.mockRejectedValueOnce(error);
+
+      await expect(controller.updateReview(reviewId, updateDto, req)).rejects.toThrow(NotFoundException);
+      expect(service.updateReview).toHaveBeenCalledWith(reviewId, updateDto, userPayload.id);
+    });
+
+    it('should propagate ForbiddenException from the service if user is not allowed to update', async () => {
+      const error = new ForbiddenException('Cannot update review');
+      mockReviewsService.updateReview.mockRejectedValueOnce(error);
+
+      await expect(controller.updateReview(reviewId, updateDto, req)).rejects.toThrow(ForbiddenException);
+      expect(service.updateReview).toHaveBeenCalledWith(reviewId, updateDto, userPayload.id);
+    });
   });
 
   // --- Test deleteReview ---
@@ -125,6 +158,22 @@ describe('ReviewsController', () => {
         // Assert
         expect(service.deleteReview).toHaveBeenCalledWith(reviewId, userPayload.id);
         expect(result).toEqual(deleteResult);
+    });
+
+    it('should propagate NotFoundException from the service if review is not found for deletion', async () => {
+      const error = new NotFoundException('Review not found');
+      mockReviewsService.deleteReview.mockRejectedValueOnce(error);
+
+      await expect(controller.deleteReview(reviewId, req)).rejects.toThrow(NotFoundException);
+      expect(service.deleteReview).toHaveBeenCalledWith(reviewId, userPayload.id);
+    });
+
+    it('should propagate ForbiddenException from the service if user is not allowed to delete', async () => {
+      const error = new ForbiddenException('Cannot delete review');
+      mockReviewsService.deleteReview.mockRejectedValueOnce(error);
+
+      await expect(controller.deleteReview(reviewId, req)).rejects.toThrow(ForbiddenException);
+      expect(service.deleteReview).toHaveBeenCalledWith(reviewId, userPayload.id);
     });
   });
 });
