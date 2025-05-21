@@ -5,6 +5,7 @@ import { AuthService } from '../auth.service';
 import { ChangePasswordPayload } from '../../models/user.model';
 import { MessageComponent } from '../../shared/components/message/message.component';
 import { LoadingIndicatorComponent } from '../../shared/components/loading-indicator/loading-indicator.component';
+import { PASSWORD_REGEX } from '../../models/user.model';
 
 @Component({
     selector: 'app-change-password-modal',
@@ -19,6 +20,7 @@ export class ChangePasswordModalComponent {
 
     private authService = inject(AuthService);
 
+    readonly newPasswordPattern = PASSWORD_REGEX;
     payload: ChangePasswordPayload = { oldPassword: '', newPassword: '' };
     confirmNewPassword = '';
     errorMessage: string | null = null;
@@ -31,6 +33,10 @@ export class ChangePasswordModalComponent {
 
     hasLetter(password: string): boolean {
         return /[a-zA-Z]/.test(password);
+    }
+
+    isValidNewPasswordFormat(password: string): boolean {
+        return this.newPasswordPattern.test(password);
     }
 
     // Method to trigger validation for new password (optional, if not using ngModelChange directly in template for all checks)
@@ -50,6 +56,10 @@ export class ChangePasswordModalComponent {
         }
         if (this.payload.newPassword.length < 8) {
             this.errorMessage = 'New password must be at least 8 characters long.';
+            return;
+        }
+        if (!this.isValidNewPasswordFormat(this.payload.newPassword)) {
+            this.errorMessage = 'Password must contain at least one letter and one number.';
             return;
         }
 

@@ -80,9 +80,14 @@
                         <span class="text-primary">{{ cheek.title }} (Link unavailable)</span>
                     </ng-container>
                 </h2>
-                <p *ngIf="cheek.description" class="text-base-content/80 mb-2 text-sm">
-                    {{ cheek.description | slice:0:100 }}{{ cheek.description.length > 100 ? '...' : '' }}
-                </p>
+                <div class="text-base-content/80 text-sm mb-2 min-h-10">
+                    <ng-container *ngIf="cheek.description; else noDescription">
+                        {{ cheek.description | slice:0:100 }}{{ cheek.description.length > 100 ? '...' : '' }}
+                    </ng-container>
+                    <ng-template #noDescription>
+                        <span class="select-none">"No description provided"</span> 
+                    </ng-template>
+                </div>
 
                 <!-- Average Rating Display -->
                 <div *ngIf="cheek.reviewCount !== undefined && cheek.averageRating !== undefined"
@@ -118,8 +123,7 @@
                                [checked]="(Math.round(cheek.averageRating! * 2) / 2) === 5.0" disabled />
                     </div>
                     <span class="ml-2 text-sm text-base-content/70">
-                        {{ cheek.averageRating | number:'1.1-1' }} ({{ cheek.reviewCount }} review{{ cheek.reviewCount
-                        === 1 ? '' : 's' }})
+                        {{ cheek.averageRating | number:'1.1-1' }} ({{ cheek.reviewCount }} <span *ngIf="cheek.reviewCount === 1">review</span><span *ngIf="cheek.reviewCount !== 1">reviews</span>)
                     </span>
                 </div>
                 <!-- End Average Rating Display -->
@@ -127,7 +131,10 @@
                 <div class="text-xs text-base-content/60 mb-3 space-y-1">
                     <div *ngIf="cheek.categoryId">
                         <strong>Category:</strong>
-                        <span class="badge badge-outline badge-sm ml-1">{{ cheek.categoryId.name }}</span>
+                        <a [routerLink]="['/cheeks']" [queryParams]="{ categoryNames: [cheek.categoryId.name] }"
+                           class="badge badge-outline badge-sm ml-1 link link-hover">
+                           {{ cheek.categoryId.name }}
+                        </a>
                     </div>
                     <div *ngIf="!cheek.categoryId">
                         <strong>Category:</strong>
@@ -156,12 +163,15 @@
                             </span>
                         </div>
                     </ng-container>
-                    <div *ngIf="cheek.tags && cheek.tags.length > 0">
+                    <div *ngIf="cheek.tagIds && cheek.tagIds.length > 0">
                         <strong>Tags:</strong>
-                        <span *ngFor="let tag of cheek.tags" class="badge badge-ghost badge-sm ml-1">{{ tag.name
-                            }}</span>
+                        <span *ngFor="let tag of cheek.tagIds" class="badge badge-ghost badge-sm ml-1">
+                            <a [routerLink]="['/cheeks']" [queryParams]="{ tagNames: [tag.name] }" class="link link-hover">
+                                {{ tag.name }}
+                            </a>
+                        </span>
                     </div>
-                    <div *ngIf="(!cheek.tags || cheek.tags.length === 0)">
+                    <div *ngIf="(!cheek.tagIds || cheek.tagIds.length === 0)">
                         <strong>Tags:</strong>
                         <span class="badge badge-ghost badge-sm ml-1 text-base-content/50">None</span>
                     </div>

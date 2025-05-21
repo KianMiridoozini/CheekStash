@@ -24,6 +24,7 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
 import { CheekVisibilityGuard } from '../common/guards/cheek-visibility.guard';
 import { Public } from '../auth/public.decorator';
 import { UpdateCheekVisibilityDto } from './dto/update-cheek-visibility.dto';
@@ -78,7 +79,7 @@ export class CheeksController {
    * Get all cheeks by a specific user ID
    */
   @Get('user/:userId')
-  @Public()
+  @UseGuards(OptionalJwtAuthGuard) // Filters private cheeks if the requesting user is not the owner
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'Cheeks for user found' })
   @ApiResponse({ status: 404, description: 'User not found or no cheeks found for user' })
@@ -87,40 +88,13 @@ export class CheeksController {
     const requestingUserId = req.user ? req.user.id : undefined;
     return this.cheeksService.getCheeksByUserId(userId, requestingUserId);
   }
-
-  /**
-   * Get a cheek by combined username+slug format
-   */
-  @Get('by/:usernamePlusSlug') 
-  @UseGuards(JwtAuthGuard, CheekVisibilityGuard)
-  @ApiBearerAuth()
-  @SetMetadata('isPublicRoute', false)
-  @HttpCode(200)
-  @ApiResponse({ status: 200, description: 'Cheek found' })
-  @ApiResponse({ status: 404, description: 'Cheek not found' })
-  @ApiResponse({ status: 400, description: 'Invalid parameters' })
-  @ApiOperation({ summary: 'Get a cheek by username+slug format' })
-  async findByUsernamePlusSlug(@Param('usernamePlusSlug') usernamePlusSlug: string, @Req() req) {
-    if (!usernamePlusSlug || !usernamePlusSlug.includes('+')) {
-      throw new BadRequestException('Invalid format: Must provide username+slug');
-    }
-    
-    const [username, cheekSlug] = usernamePlusSlug.split('+', 2);
-    if (!username || !cheekSlug) {
-      throw new BadRequestException('Username and cheek slug must be provided in format username+slug');
-    }
-    
-    const requestingUserId = req.user ? req.user.id : undefined;
-    return this.cheeksService.findCheekByUsernameAndSlug(username, cheekSlug, requestingUserId);
-  }
   
   /**
    * Get a cheek by sanitized username and cheek slug
    */
   @Get('by/:username/:cheekSlug')
-  @UseGuards(JwtAuthGuard, CheekVisibilityGuard)
+  @UseGuards(OptionalJwtAuthGuard, CheekVisibilityGuard)
   @ApiBearerAuth()
-  @SetMetadata('isPublicRoute', false)
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'Cheek found' })
   @ApiResponse({ status: 404, description: 'Cheek not found' })
@@ -142,9 +116,8 @@ export class CheeksController {
    * Get a cheek by ID
    */
   @Get(':id')
-  @UseGuards(JwtAuthGuard, CheekVisibilityGuard)
+  @UseGuards(OptionalJwtAuthGuard, CheekVisibilityGuard)
   @ApiBearerAuth()
-  @SetMetadata('isPublicRoute', false)
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'Cheek found' })
   @ApiResponse({ status: 404, description: 'Cheek not found' })

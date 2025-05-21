@@ -1,6 +1,6 @@
 import { Injectable, signal, WritableSignal, effect } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, of, throwError } from 'rxjs';
+import { ReplaySubject, Observable, of, throwError } from 'rxjs';
 import { tap, catchError } from 'rxjs/operators';
 import { environment } from '../../environments/environment';
 import { LoginPayload } from '../models/auth.model';
@@ -21,13 +21,26 @@ export class AuthService {
   private userKey = 'currentUser';
 
   currentUserSignal: WritableSignal<User | null> = signal(null);
+  private initialProfileLoadAttempted = new ReplaySubject<void>(1);
+  initialProfileLoadAttempted$ = this.initialProfileLoadAttempted.asObservable();
+
 
   constructor(private http: HttpClient) {
-    // Defer the initial profile fetch to break the circular dependency
-    // during the construction phase of services and interceptors.
     setTimeout(() => {
       if (this.isAuthenticated()) {
-        this.fetchAndStoreUserProfile();
+        this.fetchAndStoreUserProfile().subscribe({
+          complete: () => {
+            this.initialProfileLoadAttempted.next();
+            this.initialProfileLoadAttempted.complete();
+          },
+          error: () => { // Also signal on error
+            this.initialProfileLoadAttempted.next();
+            this.initialProfileLoadAttempted.complete();
+          }
+        });
+      } else {
+        this.initialProfileLoadAttempted.next();
+        this.initialProfileLoadAttempted.complete();
       }
     }, 0);
 
@@ -41,33 +54,31 @@ export class AuthService {
       tap((res: LoginResponse) => {
         localStorage.setItem(this.tokenKey, res.token);
         localStorage.setItem(this.usernameKey, res.username);
-        this.fetchAndStoreUserProfile();
+        this.fetchAndStoreUserProfile().subscribe(); 
       }),
       catchError(err => {
         this.clearUserSession();
-        return throwError(() => new Error(err.error?.message || 'Login failed'));
+        return throwError(() => err);
       })
     );
   }
 
-  private fetchAndStoreUserProfile() {
-    this.http.get<User>(`${this.apiUrl}/auth/me`).subscribe({
-      next: (user) => {
-        // Ensure user object has id, map _id if necessary
+  private fetchAndStoreUserProfile(): Observable<User | null> {
+    return this.http.get<User>(`${this.apiUrl}/auth/me`).pipe(
+      tap((user) => {
         const userWithId = { ...user, id: user.id || (user as any)._id };
         this.currentUserSignal.set(userWithId);
-      },
-      error: (err) => {
+      }),
+      catchError(err => {
         console.error('Failed to fetch user profile:', err);
-        // Only clear session if it's an authentication error (e.g., 401)
         if (err.status === 401) {
           this.clearUserSession();
+        } else {
+          this.currentUserSignal.set(null);
         }
-        // For other errors, the token might still be valid, so don't clear it.
-        // The currentUserSignal might remain null or stale if the fetch fails,
-        // and the application should handle this gracefully.
-      }
-    });
+        return of(null); 
+      })
+    );
   }
 
   logout(): void {
@@ -115,7 +126,7 @@ export class AuthService {
 
   refreshUserProfile(): void {
     if (this.isAuthenticated()) {
-      this.fetchAndStoreUserProfile();
+      this.fetchAndStoreUserProfile().subscribe();
     }
   }
 

@@ -37,6 +37,9 @@ export interface ConfirmPasswordPayload {
     password: string;
 }
 
+export const USERNAME_REGEX = /^[a-zA-Z0-9-]+$/;
+export const PASSWORD_REGEX = /^(?=.*[A-Za-z])(?=.*\d).{8,}$/;
+
 // Type guard function to check if a value is a User object
 export function isUser(value: any): value is User {
     return !!value && typeof value === 'object' && 'username' in value && 'id' in value;

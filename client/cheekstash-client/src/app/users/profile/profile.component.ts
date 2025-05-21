@@ -6,7 +6,7 @@ import { CommonModule } from '@angular/common'; // AsyncPipe is part of CommonMo
 import { RouterModule, ActivatedRoute, Router } from '@angular/router';
 import { Cheek } from '../../models/cheek.model';
 import { CheeksService } from '../../cheeks/cheeks.service';
-import { catchError, finalize, of, switchMap, tap, Observable } from 'rxjs';
+import { filter, switchMap, take, tap, catchError, finalize, of, Observable } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ChangePasswordModalComponent } from '../../auth/change-password-modal/change-password-modal.component';
 import { DeleteAccountModalComponent } from '../../auth/delete-account-modal/delete-account-modal.component';
@@ -61,52 +61,62 @@ export class ProfileComponent implements OnInit {
 
   // --- Lifecycle ---
   ngOnInit(): void {
-    const usernameFromRoute = this.route.snapshot.paramMap.get('username');
-
-    if (usernameFromRoute) {
-      this._loadProfileByUsername(usernameFromRoute);
-    } else {
-      this._loadCurrentUsersProfile();
-    }
+    this.authService.initialProfileLoadAttempted$.pipe(
+      take(1), // Ensure this subscription runs once after the attempt
+      takeUntilDestroyed(this.destroyRef),
+      tap(() => this.isLoading.set(true)), // Set loading true before deciding route
+      switchMap(() => {
+        const usernameFromRoute = this.route.snapshot.paramMap.get('username');
+        if (usernameFromRoute) {
+          return this._loadProfileByUsername(usernameFromRoute);
+        } else {
+          return this._loadCurrentUsersProfile();
+        }
+      })
+    ).subscribe();
   }
 
   // --- Private Data Loading Methods ---
 
-  private _loadProfileByUsername(username: string): void {
-    this._initiateProfileLoad(
-      this.usersService.getUserByUsername(username),
-      false
+  private _loadProfileByUsername(username: string): Observable<User | null> {
+    return this._initiateProfileLoad(
+      this.usersService.getUserByUsername(username)
     );
   }
 
-  private _loadCurrentUsersProfile(): void {
-    const currentAuthUser = this.currentUser();
+  private _loadCurrentUsersProfile(): Observable<User | null> {
+    const currentAuthUser = this.currentUser(); // Get current user from signal
     if (currentAuthUser?.username) {
-      this._initiateProfileLoad(
+      return this._initiateProfileLoad(
         this.usersService.getUserByUsername(currentAuthUser.username).pipe(
           tap(user => {
             if (user) {
+              // The signal should already be set by AuthService, but this ensures consistency
+              // if there was a race condition or if this method is called independently.
               this.authService.currentUserSignal.set(user);
             }
           })
-        ),
-        true // This is definitively the user's own profile
+        )
       );
+    } else if (this.authService.isAuthenticated()) {
+        // console.warn('ProfileComponent: Authenticated but current user signal is null. Waiting for AuthService.');
+        return of(null);
     } else {
       this.isLoading.set(false);
       this.error.set('You must be logged in to view your profile.');
-      this.router.navigate(['/auth/login']);
+      this.router.navigate(['/login']);
+      return of(null);
     }
   }
 
-  private _initiateProfileLoad(user$: Observable<User | null>, isAssumedOwnProfile: boolean): void {
+  private _initiateProfileLoad(user$: Observable<User | null>): Observable<User | null> {
     this.isLoading.set(true);
     this.error.set(null);
     this.userCheeks.set([]);
     this.profileUser.set(null);
 
-    user$.pipe(
-      takeUntilDestroyed(this.destroyRef),
+    return user$.pipe(
+      // takeUntilDestroyed(this.destroyRef), // Moved to ngOnInit subscription
       switchMap(user => {
         if (!user || !user.id) {
           this.error.set('User not found or error loading profile.');
@@ -115,8 +125,6 @@ export class ProfileComponent implements OnInit {
           return of(null);
         }
         this.profileUser.set(user);
-        // If it was assumed to be own profile, this.isOwnProfile() computed signal will update.
-        // If loading by username, this.isOwnProfile() will re-evaluate once profileUser is set.
         return this._fetchUserCheeks(user.id).pipe(
           switchMap(() => of(user)),
           catchError(cheeksError => {
@@ -135,7 +143,7 @@ export class ProfileComponent implements OnInit {
       finalize(() => {
         this.isLoading.set(false);
       })
-    ).subscribe();
+    );
   }
 
   private _fetchUserCheeks(userId: string): Observable<Cheek[]> {

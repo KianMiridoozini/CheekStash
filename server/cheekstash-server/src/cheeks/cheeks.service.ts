@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
-import { Model, Types, FilterQuery, SortOrder } from 'mongoose'; // Added FilterQuery, SortOrder
+import { Model, Types, FilterQuery, SortOrder, model } from 'mongoose';
 import { Cheeks, CheeksDocument } from './schemas/cheek.schema';
 import { CheeksDto } from './dto/cheeks.dto';
 import { UpdateCheeksDto } from './dto/update-cheeks.dto';
@@ -40,16 +40,21 @@ function generateSlug(title: string): string {
 type MongooseSortOptions = { [key: string]: SortOrder | { $meta: string } } | string;
 
 // Constants for getCheekSuggestions
-const CHEEK_SUGGESTIONS_FIELDS_TO_SELECT = 'title slug owner isPublic createdAt';
-const CHEEK_SUGGESTIONS_OWNER_POPULATION = { path: 'owner', select: 'username' };
+const cheekSuggestionsFieldsToSelect = 'title slug isPublic createdAt';
+// const cheekSuggestionsOwnerToPopulate = { path: 'owner', select: 'username' };
+
+// Constants for getCheeksByUserId
+const profileCheekFieldsToSelect = '_id title slug description owner isPublic createdAt updatedAt';
+
+// Constants for sorting
+const sortOptionsCreatedAt: MongooseSortOptions = { createdAt: -1 };
+
 
 @Injectable()
 export class CheeksService {
   // private readonly logger = new Logger(CheeksService.name); 
 
   // Constants for query projections and population
-  private static readonly SUGGESTION_FIELDS_TO_SELECT = 'title slug owner isPublic createdAt';
-  private static readonly SUGGESTION_OWNER_POPULATE_SELECT = 'username';
 
   constructor(
     @InjectModel(Cheeks.name)
@@ -63,7 +68,17 @@ export class CheeksService {
   private readonly cheekPopulationPaths = [
     { path: 'owner', select: '-passwordHash' },
     { path: 'categoryId' },
-    { path: 'tagIds' },
+    { path: 'tagIds', model: 'Tag' }, // Explicitly specify the model for population
+  ];
+
+  private readonly cheekListPopulationPaths = [
+    { path: 'owner', select: '_id username' },
+    { path: 'categoryId', select: '_id name' },
+    { path: 'tagIds', model: 'Tag', select: '_id name' },
+  ];
+
+  private readonly profileCheekPopulationPaths = [
+    { path: 'owner', select: 'username' },
   ];
 
   // Private helper to get review stats for a single cheek
@@ -112,6 +127,60 @@ export class CheeksService {
       });
     });
     return statsMap;
+  }
+
+  private async _prepareTagsForCreation(tagNames?: string[]): Promise<Types.ObjectId[]> {
+    if (!tagNames || tagNames.length === 0) {
+      return [];
+    }
+    const tagObjects = await this.tagsService.findOrCreateTags(tagNames);
+    return tagObjects.map(tag => tag._id);
+  }
+
+  private async _updateTagUsageCounts(oldTagIds: string[], newTagIds: string[]): Promise<void> {
+    const oldTagSet = new Set(oldTagIds);
+    const newTagSet = new Set(newTagIds);
+
+    for (const tagId of oldTagSet) {
+      if (!newTagSet.has(tagId)) {
+        await this.tagsService.updateTagUsageCount(tagId, -1);
+      }
+    }
+
+    for (const tagId of newTagSet) {
+      if (!oldTagSet.has(tagId)) {
+        await this.tagsService.updateTagUsageCount(tagId, 1);
+      }
+    }
+  }
+
+  private async _validateAndFetchOwnedCheek(id: string, ownerId: string): Promise<CheeksDocument> {
+    // this.logger.log(`Validating and fetching cheek with ID: "${id}" for owner: "${ownerId}"`);
+
+    if (!Types.ObjectId.isValid(id)) {
+      // this.logger.warn(`Invalid cheek ID format: "${id}"`);
+      throw new BadRequestException('Invalid cheek ID format.');
+    }
+
+    const cheek = await this.CheeksModel.findById(id)
+      .select('+owner +tagIds')
+      .populate('tagIds')
+      .exec();
+
+    if (!cheek) {
+      // this.logger.warn(`Cheek with ID "${id}" not found.`);
+      throw new NotFoundException(`Cheek with ID "${id}" not found.`);
+    }
+
+    const cheekOwnerId = cheek.owner?._id?.toString() || cheek.owner?.toString();
+    if (cheekOwnerId !== ownerId) {
+      // this.logger.warn(
+      //   `User "${ownerId}" is not authorized to access cheek "${id}" owned by "${cheekOwnerId}".`,
+      // );
+      throw new ForbiddenException('You are not authorized to perform this action on this cheek.');
+    }
+    // this.logger.log(`Successfully validated and fetched cheek ID: "${id}" for owner: "${ownerId}"`);
+    return cheek;
   }
 
   async findCheekOwnerAndVisibility(cheekId: string): Promise<{ owner: { _id: Types.ObjectId } | Types.ObjectId; isPublic: boolean } | null> {
@@ -221,15 +290,16 @@ export class CheeksService {
 
     const skip = (page - 1) * limit;
 
-    const sortOptions: MongooseSortOptions = { createdAt: -1 };
+    sortOptionsCreatedAt
 
     const [cheeksResults, totalItems] = await Promise.all([
       this.CheeksModel.find(query)
-        .populate(this.cheekPopulationPaths)
-        .sort(sortOptions) // Apply dynamic sort options
+        .select('-links')
+        .populate(this.cheekListPopulationPaths)
+        .sort(sortOptionsCreatedAt)
         .skip(skip)
         .limit(limit)
-        .lean() // Added .lean() for performance
+        .lean()
         .exec(),
       this.CheeksModel.countDocuments(query).exec(),
     ]);
@@ -243,7 +313,7 @@ export class CheeksService {
         ...cheek, // Spread the plain cheek object
         averageRating: stats?.averageRating ?? 0,
         reviewCount: stats?.reviewCount ?? 0,
-      } as unknown as CheeksDocument; // Ideally use a DTO for response
+      } as unknown as CheeksDocument; // Future Change:Ideally use a DTO for response
     });
 
     return { cheeks: cheeksWithStats, totalItems };
@@ -283,12 +353,11 @@ export class CheeksService {
 
     // this.logger.debug(`getCheekSuggestions - MongoDB query: ${JSON.stringify(query)}`);
 
-    const sortOptions: MongooseSortOptions = { createdAt: -1 };
+    sortOptionsCreatedAt;
 
     const suggestions = await this.CheeksModel.find(query)
-      .select(CHEEK_SUGGESTIONS_FIELDS_TO_SELECT) // Use constant for selected fields
-      .populate([CHEEK_SUGGESTIONS_OWNER_POPULATION]) // Use constant for owner population
-      .sort(sortOptions) // Sort by creation date (or other preferred field)
+      .select(cheekSuggestionsFieldsToSelect) // Use constant for selected fields
+      .sort(sortOptionsCreatedAt)
       .limit(limit)
       .lean()
       .exec();
@@ -344,29 +413,21 @@ export class CheeksService {
       throw new NotFoundException(`Invalid user ID format: "${userIdToFetchFor}".`);
     }
 
-    let queryResults = await this.CheeksModel.find({ owner: new Types.ObjectId(userIdToFetchFor) })
-      .populate(this.cheekPopulationPaths)
+    const fieldsToSelect = profileCheekFieldsToSelect;
+    const queryConditions: FilterQuery<CheeksDocument> = { owner: new Types.ObjectId(userIdToFetchFor) };
+
+    if (!requestingUserId || requestingUserId !== userIdToFetchFor) {
+      queryConditions.isPublic = true;
+    }
+
+    const queryResults = await this.CheeksModel.find(queryConditions)
+      .select(fieldsToSelect)
+      .populate(this.profileCheekPopulationPaths)
+      .sort({ createdAt: -1 })
       .lean()
       .exec();
 
-    if (requestingUserId && userIdToFetchFor !== requestingUserId) {
-      queryResults = queryResults.filter(cheek => cheek.isPublic);
-    }
-
-    if (queryResults && queryResults.length > 0) {
-      const cheekIds = queryResults.map(c => c._id as Types.ObjectId);
-      const reviewStatsMap = await this._getReviewStatsForCheeks(cheekIds);
-      const cheeksWithStats = queryResults.map(cheek => {
-        const stats = reviewStatsMap.get(cheek._id.toString());
-        return {
-          ...cheek,
-          averageRating: stats ? stats.averageRating : 0,
-          reviewCount: stats ? stats.reviewCount : 0,
-        };
-      });
-      return cheeksWithStats as CheeksDocument[];
-    }
-    return [] as CheeksDocument[];
+    return queryResults as CheeksDocument[];
   }
 
   async updateCheeks(
@@ -421,35 +482,6 @@ export class CheeksService {
     let updatedCheek = await cheek.save();
     updatedCheek = await updatedCheek.populate(this.cheekPopulationPaths);
     return updatedCheek;
-  }
-
-  private async _validateAndFetchOwnedCheek(id: string, ownerId: string): Promise<CheeksDocument> {
-    // this.logger.log(`Validating and fetching cheek with ID: "${id}" for owner: "${ownerId}"`);
-
-    if (!Types.ObjectId.isValid(id)) {
-      // this.logger.warn(`Invalid cheek ID format: "${id}"`);
-      throw new BadRequestException('Invalid cheek ID format.');
-    }
-
-    const cheek = await this.CheeksModel.findById(id)
-      .select('+owner +tagIds')
-      .populate('tagIds') 
-      .exec();
-
-    if (!cheek) {
-      // this.logger.warn(`Cheek with ID "${id}" not found.`);
-      throw new NotFoundException(`Cheek with ID "${id}" not found.`);
-    }
-
-    const cheekOwnerId = cheek.owner?._id?.toString() || cheek.owner?.toString();
-    if (cheekOwnerId !== ownerId) {
-      // this.logger.warn(
-      //   `User "${ownerId}" is not authorized to access cheek "${id}" owned by "${cheekOwnerId}".`,
-      // );
-      throw new ForbiddenException('You are not authorized to perform this action on this cheek.');
-    }
-    // this.logger.log(`Successfully validated and fetched cheek ID: "${id}" for owner: "${ownerId}"`);
-    return cheek;
   }
 
   async deleteCheeks(id: string, ownerId: string): Promise<void> {
@@ -529,30 +561,5 @@ export class CheeksService {
       }
     }
     return uniqueSlug;
-  }
-
-  private async _prepareTagsForCreation(tagNames?: string[]): Promise<Types.ObjectId[]> {
-    if (!tagNames || tagNames.length === 0) {
-      return [];
-    }
-    const tagObjects = await this.tagsService.findOrCreateTags(tagNames);
-    return tagObjects.map(tag => tag._id);
-  }
-
-  private async _updateTagUsageCounts(oldTagIds: string[], newTagIds: string[]): Promise<void> {
-    const oldTagSet = new Set(oldTagIds);
-    const newTagSet = new Set(newTagIds);
-
-    for (const tagId of oldTagSet) {
-      if (!newTagSet.has(tagId)) {
-        await this.tagsService.updateTagUsageCount(tagId, -1);
-      }
-    }
-
-    for (const tagId of newTagSet) {
-      if (!oldTagSet.has(tagId)) {
-        await this.tagsService.updateTagUsageCount(tagId, 1);
-      }
-    }
   }
 }

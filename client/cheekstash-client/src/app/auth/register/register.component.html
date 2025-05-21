@@ -11,16 +11,16 @@
             <span class="label-text">Username</span>
           </label>
           <input type="text" id="username" name="username" [(ngModel)]="userData.username"
-            class="input input-bordered w-full" required minlength="3" maxlength="20" pattern="^[a-zA-Z0-9_]+$"
+            class="input input-bordered w-full" required minlength="3" maxlength="20"
             #usernameInput="ngModel"
-            [ngClass]="{'input-error': usernameInput.invalid && (usernameInput.dirty || usernameInput.touched)}">
-          <div *ngIf="usernameInput.invalid && (usernameInput.dirty || usernameInput.touched)"
+            [ngClass]="{'input-error': (usernameInput.invalid || (usernameInput.dirty && !isUsernameValid())) && (usernameInput.dirty || usernameInput.touched)}">
+          <div *ngIf="(usernameInput.invalid || (usernameInput.dirty && !isUsernameValid())) && (usernameInput.dirty || usernameInput.touched)"
             class="text-error text-xs mt-1">
             <span *ngIf="usernameInput.errors?.['required']">Username is required.</span>
             <span *ngIf="usernameInput.errors?.['minlength']">Username must be at least 3 characters.</span>
             <span *ngIf="usernameInput.errors?.['maxlength']">Username cannot exceed 20 characters.</span>
-            <span *ngIf="usernameInput.errors?.['pattern']">Username can only contain letters, numbers, and
-              underscores.</span>
+            <span *ngIf="usernameInput.dirty && !isUsernameValid()">Username can only contain letters, numbers, and
+              hyphens.</span>
           </div>
         </div>
 
@@ -42,14 +42,14 @@
             <span class="label-text">Password</span>
           </label>
           <input type="password" id="password" name="password" [(ngModel)]="userData.password"
-            class="input input-bordered w-full" required minlength="8" pattern="^(?=.*[a-zA-Z])(?=.*[0-9]).*$"
+            class="input input-bordered w-full" required minlength="8"
             #passwordInput="ngModel"
             [ngClass]="{'input-error': passwordInput.invalid && (passwordInput.dirty || passwordInput.touched)}">
           <div *ngIf="passwordInput.invalid && (passwordInput.dirty || passwordInput.touched)"
             class="text-error text-xs mt-1">
             <span *ngIf="passwordInput.errors?.['required']">Password is required.</span>
             <span *ngIf="passwordInput.errors?.['minlength']">Password must be at least 8 characters.</span>
-            <span *ngIf="passwordInput.errors?.['pattern']">Password must contain at least one letter and one
+            <span *ngIf="passwordInput.dirty && !isPasswordValid()">Password must contain at least one letter and one
               number.</span>
           </div>
         </div>

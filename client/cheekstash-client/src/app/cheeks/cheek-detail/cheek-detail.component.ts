@@ -1,14 +1,11 @@
-import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core'; // Import ViewChild
-import { ActivatedRoute, RouterLink, Router, ParamMap } from '@angular/router'; // Import ParamMap
+import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
+import { ActivatedRoute, RouterLink, Router, ParamMap } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { Subscription, switchMap, forkJoin, of, Observable } from 'rxjs';
-import { map, catchError } from 'rxjs/operators';
+import { Subscription, switchMap, of, Observable } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 import { CheeksService } from '../cheeks.service';
 import { Cheek } from '../../models/cheek.model';
-import { Tag } from '../../models/tag.model';
-import { UsersService } from '../../users/users.service';
-import { TagsService } from '../../tags/tags.service';
 import { LoadingIndicatorComponent } from '../../shared/components/loading-indicator/loading-indicator.component';
 import { AuthService } from '../../auth/auth.service';
 import { User } from '../../models/user.model';
@@ -34,17 +31,15 @@ export class CheekDetailComponent implements OnInit, OnDestroy {
   error: string | null = null;
   isOwner: boolean = false;
   showDeleteConfirmation: boolean = false;
-  canAddReview: boolean = false; // Will be determined by login status and whether user has already reviewed
+  canAddReview: boolean = false;
   showAddReviewForm: boolean = false;
-  hasUserReviewedThisCheek: boolean = false; // New property
+  hasUserReviewedThisCheek: boolean = false;
   private routeSub: Subscription | undefined;
   currentUser: User | null = null;
 
   constructor(
     private route: ActivatedRoute,
     private cheeksService: CheeksService,
-    private usersService: UsersService,
-    private tagsService: TagsService,
     private authService: AuthService,
     private router: Router
   ) { }
@@ -57,7 +52,6 @@ export class CheekDetailComponent implements OnInit, OnDestroy {
       switchMap(params => this.loadCheekDetails(params))
     ).subscribe({
       next: (processedCheek) => {
-        // isLoading is set within processCheekData or handleLoadingError
         if (this.cheek || this.error) {
           this.isLoading = false;
         } else if (!processedCheek) {
@@ -111,47 +105,16 @@ export class CheekDetailComponent implements OnInit, OnDestroy {
     }
 
     this.cheek = cheekData;
-    // Fetch and assign tags if only tagIds are present
-    return this.fetchAndAssignTags(this.cheek).pipe(
-      map(cheekWithTags => {
-        this.cheek = cheekWithTags; // Update the component's cheek property
-        this.checkIfOwner();
-        this.determineOwnerDisplayDetails(this.cheek);
-        this.updateCanAddReviewStatus();
-        this.isLoading = false; // Set loading to false after all processing
-        return this.cheek;
-      }),
-      catchError(err => {
-        // Handle error from fetchAndAssignTags if necessary, or let global handler catch it
-        console.error('Error processing cheek data after fetching tags:', err);
-        this.error = 'Failed to process cheek details.';
-        this.isLoading = false;
-        return of(null);
-      })
-    );
+    this.cheek.tagIds = this.cheek.tagIds || [];
+
+    this.checkIfOwner();
+    this.determineOwnerDisplayDetails(this.cheek);
+    this.updateCanAddReviewStatus();
+    this.isLoading = false;
+    return of(this.cheek);
   }
 
-  private fetchAndAssignTags(cheek: Cheek): Observable<Cheek> {
-    if (cheek.tagIds && cheek.tagIds.length > 0 && (!cheek.tags || cheek.tags.length === 0)) {
-      const tagObservables = cheek.tagIds.map(tagId =>
-        this.tagsService.getTagById(tagId).pipe(
-          catchError(err => {
-            console.error(`Error fetching tag ${tagId}:`, err);
-            return of(null);
-          })
-        )
-      );
-      return forkJoin(tagObservables).pipe(
-        map(tags => {
-          cheek.tags = tags.filter(tag => tag !== null) as Tag[];
-          return cheek;
-        })
-      );
-    } else {
-      cheek.tags = cheek.tags || []; // Ensure tags is an array even if no tagIds or already populated
-      return of(cheek);
-    }
-  }
+
 
   private determineOwnerDisplayDetails(cheek: Cheek): void {
     if (cheek.owner && typeof cheek.owner === 'object' && (cheek.owner as User).username) {

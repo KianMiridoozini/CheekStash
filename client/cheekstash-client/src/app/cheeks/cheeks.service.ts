@@ -40,10 +40,6 @@ export class CheeksService {
     return this.http.get<Cheek[]>(`${this.apiUrl}/suggestions`, { params: httpParams });
   }
 
-  getCheekByUsernameAndTitle(usernamePlusSlug: string): Observable<Cheek> {
-    return this.http.get<Cheek>(`${this.apiUrl}/by/${usernamePlusSlug}`);
-  }
-
   getCheekByUsernameAndSlug(username: string, cheekSlug: string): Observable<Cheek> {
     return this.http.get<Cheek>(`${this.apiUrl}/by/${username}/${cheekSlug}`);
   }

@@ -1,17 +1,16 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterModule } from '@angular/router';
-import { Cheek, CheekQueryParams, PaginatedCheeksResponse } from '../../models/cheek.model';
+import { RouterModule, ActivatedRoute, Router } from '@angular/router';
+import { FormsModule } from '@angular/forms';
+import { Subject, Subscription, of } from 'rxjs'; // Removed Observable if not explicitly returned by a function here
+import { map, takeUntil, tap, catchError, distinctUntilChanged } from 'rxjs/operators'; // Removed switchMap for now
+
+import { LoadingIndicatorComponent } from '../../shared/components/loading-indicator/loading-indicator.component';
+import { CheekSearchComponent, EmittedSearchCriteria, InitialSearchFilters } from '../cheek-search/cheek-search.component';
 import { CheeksService } from '../cheeks.service';
 import { AuthService } from '../../auth/auth.service';
-import { TagsService } from '../../tags/tags.service';
-import { Tag } from '../../models/tag.model';
+import { Cheek, PaginatedCheeksResponse, CheekQueryParams } from '../../models/cheek.model';
 import { User } from '../../models/user.model';
-import { forkJoin, of, Observable, Subscription } from 'rxjs';
-import { map, catchError, switchMap, takeUntil, tap } from 'rxjs/operators';
-import { LoadingIndicatorComponent } from '../../shared/components/loading-indicator/loading-indicator.component';
-import { CheekSearchComponent, InitialSearchFilters, EmittedSearchCriteria } from '../cheek-search/cheek-search.component';
-import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-cheek-list',
@@ -38,7 +37,7 @@ export class CheekListComponent implements OnInit, OnDestroy {
 
   // Pagination state
   currentPage: number = 1;
-  readonly initialLoadCount: number = 12;
+  readonly initialLoadCount: number = 9;
   readonly loadMoreCount: number = 6;
   totalCheeksFromServer: number = 0;
   allCheeksLoaded: boolean = false;
@@ -47,12 +46,11 @@ export class CheekListComponent implements OnInit, OnDestroy {
   public readonly Math = Math;
 
   private queryParamsSubscription: Subscription | undefined;
-  private destroy$ = new Observable<void>();
+  private destroy$ = new Subject<void>();
 
   constructor(
     private cheeksService: CheeksService,
     private authService: AuthService,
-    private tagsService: TagsService,
     private route: ActivatedRoute,
     private router: Router
   ) { }
@@ -65,24 +63,26 @@ export class CheekListComponent implements OnInit, OnDestroy {
     }
 
     this.queryParamsSubscription = this.route.queryParams.pipe(
+      takeUntil(this.destroy$),
       map(params => {
         const parsedFilters: InitialSearchFilters = {};
         if (params['search']) {
-          parsedFilters.searchKeyword = params['search'].replace(/-/g, ' ');
+          parsedFilters.searchKeyword = params['search'];
         }
         if (params['categoryNames']) {
-          const categoryNamesFromUrl = Array.isArray(params['categoryNames']) ? params['categoryNames'] : params['categoryNames'].split(',');
-          parsedFilters.categoryNames = categoryNamesFromUrl.map((name: string) => name.replace(/-/g, ' '));
+          parsedFilters.categoryNames = Array.isArray(params['categoryNames']) ? params['categoryNames'] : params['categoryNames'].split(',');
         }
         if (params['tagNames']) {
-          const tagNamesFromUrl = Array.isArray(params['tagNames']) ? params['tagNames'] : params['tagNames'].split(',');
-          parsedFilters.tagNames = tagNamesFromUrl.map((name: string) => name.replace(/-/g, ' '));
+          parsedFilters.tagNames = Array.isArray(params['tagNames']) ? params['tagNames'] : params['tagNames'].split(',');
         }
         const sortByFromUrl = params['sortBy'] || 'recent';
         return { filters: parsedFilters, sortBy: sortByFromUrl };
-      })
+      }),
+      // Prevent re-triggering if the initial name-based filters from URL haven't changed.
+      distinctUntilChanged((prev, curr) => JSON.stringify(prev.filters) === JSON.stringify(curr.filters) && prev.sortBy === curr.sortBy),
     ).subscribe(({ filters, sortBy }) => {
-      this.initialSearchFilters = filters;
+      // Update properties that are @Input to CheekSearchComponent or used for sorting
+      this.initialSearchFilters = filters; 
       this.currentSortBy = sortBy;
     });
   }
@@ -91,39 +91,57 @@ export class CheekListComponent implements OnInit, OnDestroy {
     if (this.queryParamsSubscription) {
       this.queryParamsSubscription.unsubscribe();
     }
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   onSearchFiltersChanged(criteria: EmittedSearchCriteria): void {
+    // This method is called when CheekSearchComponent emits its processed criteria (with IDs)
+    // console.log('onSearchFiltersChanged called with criteria:', JSON.stringify(criteria));
+    // console.log('Current search criteria before potential update:', JSON.stringify(this.currentSearchCriteria));
+
+    // Prevent reloading if the new criteria are identical to what was last used.
+    if (this.currentSearchCriteria && JSON.stringify(this.currentSearchCriteria) === JSON.stringify(criteria)) {
+      // console.log("onSearchFiltersChanged: Criteria haven't changed, not reloading.");
+      return;
+    }
+
     this.cheeks = [];
     this.allCheeksLoaded = false;
     this.totalCheeksFromServer = 0;
-    this.currentSearchCriteria = criteria;
+    this.currentSearchCriteria = criteria; // Update current criteria with the new one
+    this.currentPage = 1; // Reset page
     this.loadCheeks(criteria, true);
   }
 
   loadCheeks(criteria: EmittedSearchCriteria, isNewSearch: boolean = false): void {
+    // console.log('loadCheeks called. isLoading:', this.isLoading, 'isNewSearch:', isNewSearch, 'Criteria:', criteria);
+    if (this.isLoading && !isNewSearch) {
+        return;
+    }
     this.isLoading = true;
     this.error = null;
-    this.noCheeksFound = false; // Reset on new load
+    if (isNewSearch) {
+        this.noCheeksFound = false;
+        this.router.navigate([], {
+          relativeTo: this.route,
+          queryParams: this.buildNavQueryParams(criteria, this.currentSortBy), 
+          replaceUrl: true
+        });
+    }
 
     let pageToRequest: number;
     let limitToRequest: number;
 
     if (isNewSearch) {
-      this.currentPage = 1;
-      pageToRequest = 1;
+      pageToRequest = 1; // Always page 1 for a new search
       limitToRequest = this.initialLoadCount;
-
-      this.router.navigate([], {
-        relativeTo: this.route,
-        queryParams: this.buildNavQueryParams(criteria, this.currentSortBy),
-        queryParamsHandling: 'merge',
-        replaceUrl: true
-      });
     } else {
       pageToRequest = Math.floor(this.cheeks.length / this.loadMoreCount) + 1;
       limitToRequest = this.loadMoreCount;
     }
+    // console.log(`Requesting page: ${pageToRequest}, limit: ${limitToRequest}`);
+
 
     const serviceParams: CheekQueryParams = {
       searchKeyword: criteria.searchKeyword,
@@ -132,147 +150,86 @@ export class CheekListComponent implements OnInit, OnDestroy {
       page: pageToRequest,
       limit: limitToRequest,
     };
-    if (this.currentUserId) {
-      serviceParams.requestingUserId = this.currentUserId;
-    }
 
     this.cheeksService.getAllCheeksPaginated(serviceParams).pipe(
       takeUntil(this.destroy$),
-      tap((paginatedResponse: PaginatedCheeksResponse | null) => { // Allow null for catchError
-        if (!paginatedResponse) { // Handle case where catchError returned null
-          this.isLoading = false;
-          this.cheeks = [];
-          this.totalCheeksFromServer = 0;
-          this.allCheeksLoaded = true;
-          this.noCheeksFound = true; // No response means no cheeks
-          return;
-        }
+      tap((paginatedResponse: PaginatedCheeksResponse | null) => {
+        this.isLoading = false;
+        if (paginatedResponse && paginatedResponse.cheeks) {
+          let newCheeksReceived = paginatedResponse.cheeks;
 
-        this.totalCheeksFromServer = paginatedResponse.totalItems;
-
-        if (isNewSearch && paginatedResponse.totalItems === 0) {
-          this.noCheeksFound = true;
-        }
-
-        if (!paginatedResponse.cheeks || paginatedResponse.cheeks.length === 0) {
-          this.allCheeksLoaded = true;
-          if (isNewSearch) { // If it's a new search and no cheeks came back
-            this.cheeks = [];
-          } // Otherwise, if loading more and no new cheeks, just keep existing ones
-          this.isLoading = false;
-          return;
-        }
-
-        const cheeksWithTagsObservables = paginatedResponse.cheeks.map((cheek: Cheek) => {
-          if (cheek.tagIds && cheek.tagIds.length > 0) {
-            return forkJoin(
-              (cheek.tagIds as string[]).map(tagId => this.tagsService.getTagById(tagId))
-            ).pipe(
-              map(tags => ({ ...cheek, tags: tags.filter(t => !!t) as Tag[] })),
-              catchError(() => of({ ...cheek, tags: [] }))
-            );
+          if (isNewSearch) {
+            this.cheeks = newCheeksReceived;
           } else {
-            return of({ ...cheek, tags: [] });
+            const newCheeksToAdd = newCheeksReceived.filter(
+              newCheek => !this.cheeks.some(existingCheek => existingCheek._id === newCheek._id)
+            );
+            this.cheeks = [...this.cheeks, ...newCheeksToAdd];
           }
-        });
+          
+          this.totalCheeksFromServer = paginatedResponse.totalItems;
+          this.allCheeksLoaded = this.cheeks.length >= this.totalCheeksFromServer;
+          this.noCheeksFound = this.cheeks.length === 0;
 
-        if (cheeksWithTagsObservables.length > 0) {
-          forkJoin(cheeksWithTagsObservables).subscribe({
-            next: (processedCheeks: Cheek[]) => {
-              if (isNewSearch) {
-                this.cheeks = processedCheeks;
-              } else {
-                this.cheeks = [...this.cheeks, ...processedCheeks];
-              }
-              this.allCheeksLoaded = this.cheeks.length >= this.totalCheeksFromServer;
-              this.applyClientSideSorting();
-              this.isLoading = false;
-              this.noCheeksFound = this.cheeks.length === 0; // Update based on final list
-            },
-            error: (err: any) => {
-              console.error('Error processing cheeks with tags:', err);
-              this.isLoading = false;
-            }
-          });
         } else {
           if (isNewSearch) {
             this.cheeks = [];
-          } else {
-            this.cheeks = [...this.cheeks];
+            this.noCheeksFound = true;
+            this.totalCheeksFromServer = 0;
           }
-          this.applyClientSideSorting();
-          this.allCheeksLoaded = true; // Since no new cheeks were added
-          this.isLoading = false;
-          this.noCheeksFound = this.cheeks.length === 0; // Update based on final list
+          this.allCheeksLoaded = true;
         }
       }),
       catchError((err: any) => {
-        console.error('Error fetching cheeks:', err);
         this.isLoading = false;
-        this.error = 'Failed to load cheeks. Please try again later.';
-        this.cheeks = [];
-        this.totalCheeksFromServer = 0;
-        this.allCheeksLoaded = true;
-        this.noCheeksFound = true; // Set to true on error as well
-        return of(null); // Return of(null) to satisfy Observable<PaginatedCheeksResponse | null>
+        this.error = `Failed to load cheeks. ${err.message || 'Please try again later.'}`;
+        console.error('Error loading cheeks:', err);
+        if (isNewSearch) {
+            this.cheeks = [];
+            this.noCheeksFound = true;
+            this.totalCheeksFromServer = 0; // Reset on error for new search
+        }
+        return of(null);
       })
     ).subscribe();
   }
 
   onLoadMore(): void {
     if (!this.allCheeksLoaded && !this.isLoading && this.currentSearchCriteria) {
-      this.loadCheeks(this.currentSearchCriteria, false);
+      this.loadCheeks(this.currentSearchCriteria, false); // false for isNewSearch
     }
   }
 
   private buildNavQueryParams(criteria: EmittedSearchCriteria, sortBy: string): any {
     const navParams: any = {};
     if (criteria.searchKeyword) {
-      navParams.search = criteria.searchKeyword.replace(/\s+/g, '-');
-    } else {
-      navParams.search = null;
+      navParams.search = criteria.searchKeyword;
     }
 
+    // EmittedSearchCriteria should have categoryNames and tagNames if they were part of the search
     if (criteria.categoryNames && criteria.categoryNames.length > 0) {
-      navParams.categoryNames = criteria.categoryNames.map((name: string) => name.replace(/\s+/g, '-')).join(',');
-    } else {
-      navParams.categoryNames = null;
-    }
+      navParams.categoryNames = criteria.categoryNames.join(',');
+    } 
 
     if (criteria.tagNames && criteria.tagNames.length > 0) {
-      navParams.tagNames = criteria.tagNames.map((name: string) => name.replace(/\s+/g, '-')).join(',');
-    } else {
-      navParams.tagNames = null;
+      navParams.tagNames = criteria.tagNames.join(',');
+    } else if (criteria.tagIds && criteria.tagIds.length > 0 && (!criteria.tagNames || criteria.tagNames.length === 0)) {
+      // Fallback to tagIds in URL if tagNames are not available but tagIds are.
+      // This might happen if filtering is initiated with IDs directly somehow.
+      navParams.tagIds = criteria.tagIds.join(',');
     }
 
     if (sortBy && sortBy !== 'recent') {
       navParams.sortBy = sortBy;
-    } else {
-      navParams.sortBy = null;
     }
-    return navParams;
-  }
 
-  private fetchTagsForCheek(cheek: Cheek): Observable<Cheek> {
-    if (cheek.tagIds && cheek.tagIds.length > 0) {
-      const tagObservables = cheek.tagIds.map(tagId =>
-        this.tagsService.getTagById(tagId).pipe(
-          catchError(err => {
-            console.error(`Error fetching tag ${tagId} for cheek ${cheek.title || cheek._id}:`, err);
-            return of(null);
-          })
-        )
-      );
-      return forkJoin(tagObservables).pipe(
-        map(tags => {
-          cheek.tags = tags.filter(tag => tag !== null) as Tag[];
-          return cheek;
-        })
-      );
-    } else {
-      cheek.tags = [];
-      return of(cheek);
-    }
+    // Clean up null/undefined query parameters before navigating
+    Object.keys(navParams).forEach(key => {
+      if (navParams[key] === null || navParams[key] === undefined || navParams[key] === '') {
+        delete navParams[key];
+      }
+    });
+    return navParams;
   }
 
   isUser(owner: User | string): owner is User {
@@ -324,16 +281,13 @@ export class CheekListComponent implements OnInit, OnDestroy {
 
     const sortedCheeks = [...this.cheeks];
 
-    const fallbackDateA = new Date(0);
-    const fallbackDateB = new Date();
+    const fallbackDateA = new Date(0); // Very old date
 
     switch (this.currentSortBy) {
       case 'recent':
-        sortedCheeks.sort((a, b) => {
-          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : fallbackDateA.getTime();
-          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : fallbackDateA.getTime();
-          return dateB - dateA;
-        });
+        sortedCheeks.sort((a, b) =>
+          new Date(b.createdAt || fallbackDateA).getTime() - new Date(a.createdAt || fallbackDateA).getTime()
+        );
         break;
       case 'rating-desc':
         sortedCheeks.sort((a, b) => (b.averageRating ?? 0) - (a.averageRating ?? 0));
@@ -342,22 +296,16 @@ export class CheekListComponent implements OnInit, OnDestroy {
         sortedCheeks.sort((a, b) => (a.averageRating ?? 0) - (b.averageRating ?? 0));
         break;
       case 'alpha-asc':
-        sortedCheeks.sort((a, b) => 
-          (a.title ?? '').toLowerCase().localeCompare((b.title ?? '').toLowerCase())
-        );
+        sortedCheeks.sort((a, b) => a.title.localeCompare(b.title));
         break;
       case 'alpha-desc':
-        sortedCheeks.sort((a, b) => 
-          (b.title ?? '').toLowerCase().localeCompare((a.title ?? '').toLowerCase())
-        );
+        sortedCheeks.sort((a, b) => b.title.localeCompare(a.title));
         break;
       default:
-        sortedCheeks.sort((a, b) => {
-          const dateA = a.createdAt ? new Date(a.createdAt).getTime() : fallbackDateA.getTime();
-          const dateB = b.createdAt ? new Date(b.createdAt).getTime() : fallbackDateA.getTime();
-          return dateB - dateA;
-        });
-        break;
+        // Default to recent if sortBy is unknown
+        sortedCheeks.sort((a, b) =>
+          new Date(b.createdAt || fallbackDateA).getTime() - new Date(a.createdAt || fallbackDateA).getTime()
+        );
     }
     this.cheeks = sortedCheeks;
   }

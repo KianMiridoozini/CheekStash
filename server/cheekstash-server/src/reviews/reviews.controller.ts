@@ -3,6 +3,8 @@ import { ReviewsService } from './reviews.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
+import { CheekVisibilityGuard } from '../common/guards/cheek-visibility.guard';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
 import { HttpCode } from '@nestjs/common';
 
@@ -32,7 +34,7 @@ export class ReviewsController {
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'List of reviews for the cheek' })
   @ApiOperation({ summary: 'Get all reviews for a specific cheek' })
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtAuthGuard, CheekVisibilityGuard)
   @ApiBearerAuth()
   async getReviews(@Param('cheekId') cheekId: string, @Req() req) {
     const requestingUserId = req.user ? req.user.id : undefined;
@@ -46,7 +48,7 @@ export class ReviewsController {
   @HttpCode(200)
   @ApiResponse({ status: 200, description: 'List of reviews for the cheek, by slug' })
   @ApiOperation({ summary: 'Get all reviews for a specific cheek by username and slug' })
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(OptionalJwtAuthGuard, CheekVisibilityGuard)
   @ApiBearerAuth()
   async getReviewsBySlug(
     @Param('username') username: string,
