@@ -23,7 +23,7 @@
     <div *ngIf="cheek && !isLoading && !error" class="card lg:card-side bg-base-100 shadow-xl">
         <div class="card-body">
             <h1 class="card-title text-3xl lg:text-4xl mb-2">{{ cheek.title }}</h1>
-            <p *ngIf="cheek.description" class="text-base-content/80 mb-4 prose">{{ cheek.description }}</p>
+            <p *ngIf="cheek.description" class="text-base-content/80 mb-4 prose" style="white-space: pre-wrap;">{{ cheek.description }}</p>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-3 mb-6 text-sm">
                 <div>
@@ -49,14 +49,14 @@
                         {{ cheek.isPublic ? 'Public' : 'Private' }}
                     </span>
                 </div>
-                <div *ngIf="cheek.tags && cheek.tags.length > 0">
+                <div *ngIf="cheek.tagIds && cheek.tagIds.length > 0">
                     <strong class="text-base-content/90 block mb-0.5">Tags:</strong>
                     <div class="flex flex-wrap gap-1 mt-1">
-                        <span *ngFor="let tag of cheek.tags" class="badge badge-outline badge-accent">{{ tag.name
+                        <span *ngFor="let tag of cheek.tagIds" class="badge badge-outline badge-accent">{{ tag.name
                             }}</span>
                     </div>
                 </div>
-                <div *ngIf="!cheek.tags || cheek.tags.length === 0">
+                <div *ngIf="!cheek.tagIds || cheek.tagIds.length === 0">
                     <strong class="text-base-content/90 block mb-0.5">Tags:</strong>
                     <span class="text-base-content/50 italic">None</span>
                 </div>

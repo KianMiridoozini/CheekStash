@@ -17,8 +17,7 @@ export interface Cheek {
     title: string;
     slug: string;
     description?: string;
-    tagIds?: string[];
-    tags?: Tag[];
+    tagIds?: Partial<Tag>[]; 
     categoryId: Category;
     owner: User | string;
     isPublic: boolean;

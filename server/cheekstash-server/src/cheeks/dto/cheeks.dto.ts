@@ -16,7 +16,6 @@ export class CheeksDto {
     description: 'Cheeks description',
   })
   @IsString()
-  @IsNotEmpty()
   @IsOptional()
   description?: string;
 

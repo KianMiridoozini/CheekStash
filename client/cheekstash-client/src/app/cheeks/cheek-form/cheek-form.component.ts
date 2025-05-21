@@ -8,10 +8,9 @@ import { UsersService } from '../../users/users.service';
 import { TagsService } from '../../tags/tags.service';
 import { Category } from '../../models/category.model';
 import { CreateCheekPayload, UpdateCheekPayload, Link, Cheek } from '../../models/cheek.model';
-import { Tag } from '../../models/tag.model';
 import { LoadingIndicatorComponent } from '../../shared/components/loading-indicator/loading-indicator.component';
 import { switchMap, catchError, tap, map } from 'rxjs/operators';
-import { of, forkJoin, Observable } from 'rxjs';
+import { of, Observable } from 'rxjs';
 
 @Component({
   selector: 'app-cheek-form',
@@ -35,7 +34,6 @@ export class CheekFormComponent implements OnInit {
     private cheeksService: CheeksService,
     private categoriesService: CategoriesService,
     private usersService: UsersService,
-    private tagsService: TagsService,
     private router: Router,
     private route: ActivatedRoute
   ) {
@@ -81,29 +79,8 @@ export class CheekFormComponent implements OnInit {
         }
         this.currentCheekId = cheekData._id;
 
-        if (cheekData.tagIds && cheekData.tagIds.length > 0 && (!cheekData.tags || cheekData.tags.length === 0)) {
-          const tagObservables = cheekData.tagIds.map(tagId =>
-            this.tagsService.getTagById(tagId).pipe(
-              catchError(err => {
-                console.warn(`Failed to fetch tag with ID ${tagId}:`, err);
-                return of(null);
-              })
-            )
-          );
-          return forkJoin(tagObservables).pipe(
-            map(fetchedTags => {
-              cheekData.tags = fetchedTags.filter(tag => tag !== null) as Tag[];
-              return cheekData;
-            }),
-            catchError(err => {
-              console.error('Error fetching one or more tags:', err);
-              return of(cheekData);
-            })
-          );
-        } else {
-          cheekData.tags = cheekData.tags || [];
-          return of(cheekData);
-        }
+        cheekData.tagIds = cheekData.tagIds || [];
+        return of(cheekData);
       }),
       tap(finalCheekData => {
         this.isLoading = false;
@@ -151,8 +128,8 @@ export class CheekFormComponent implements OnInit {
       title: cheekData.title,
       description: cheekData.description,
       categoryId: cheekData.categoryId?._id || cheekData.categoryId,
-      tagNames: cheekData.tags && Array.isArray(cheekData.tags)
-        ? cheekData.tags.map(tag => tag.name).join(', ')
+      tagNames: cheekData.tagIds && Array.isArray(cheekData.tagIds)
+        ? cheekData.tagIds.map(tag => tag.name).join(', ')
         : '',
       isPublic: cheekData.isPublic
     });

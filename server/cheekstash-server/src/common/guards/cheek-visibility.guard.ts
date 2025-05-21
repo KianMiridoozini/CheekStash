@@ -6,7 +6,7 @@ import {
     ForbiddenException,
     BadRequestException,
 } from '@nestjs/common';
-import { CheeksService } from '../../cheeks/cheeks.service'; // Adjust path as needed
+import { CheeksService } from '../../cheeks/cheeks.service';
 import { Types } from 'mongoose';
 
 @Injectable()

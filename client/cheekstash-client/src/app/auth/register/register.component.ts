@@ -4,6 +4,7 @@ import { UsersService } from '../../users/users.service';
 import { SharedModule } from '../../shared/shared.module';
 import { MessageComponent } from '../../shared/components/message/message.component';
 import { LoadingIndicatorComponent } from '../../shared/components/loading-indicator/loading-indicator.component';
+import { USERNAME_REGEX, PASSWORD_REGEX } from '../../models/user.model';
 
 
 @Component({
@@ -27,13 +28,32 @@ export class RegisterComponent {
   errorMessage: string | null = null; // Added for error messages
   isLoading: boolean = false;
 
+  readonly usernamePattern = USERNAME_REGEX;
+  readonly passwordPattern = PASSWORD_REGEX;
+
   constructor(
     private usersService: UsersService, 
     private router: Router
   ) {}
 
+  isUsernameValid(): boolean {
+    return this.usernamePattern.test(this.userData.username);
+  }
+
+  isPasswordValid(): boolean {
+    return this.passwordPattern.test(this.userData.password);
+  }
+
   onSubmit(): void {
     this.errorMessage = null; // Clear previous error on new submission
+    if (!this.isUsernameValid()) {
+      this.errorMessage = 'Username can only contain letters, numbers, and hyphens.';
+      return;
+    }
+    if (!this.isPasswordValid()) {
+      this.errorMessage = 'Password must contain at least one letter and one number.';
+      return;
+    }
     this.isLoading = true;
     this.usersService.register(this.userData).subscribe({
       next: (response) => {
