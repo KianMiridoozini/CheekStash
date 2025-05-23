@@ -1,6 +1,7 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
+import { NgForm } from '@angular/forms';
 import { TagsService } from '../../tags/tags.service';
-import { Tag } from '../../models/tag.model';
+import { Tag, CreateTagPayload } from '../../models/tag.model';
 
 @Component({
   selector: 'app-admin-manage-tags',
@@ -14,8 +15,13 @@ export class AdminManageTagsComponent implements OnInit {
   isLoading = true;
   error: string | null = null;
 
+  // Form-related properties
+  tagFormModel: CreateTagPayload = { name: '' };
+  formError: string | null = null;
+  @ViewChild('tagFormRef') tagFormRef!: NgForm;
+
   searchTerm: string = '';
-  sortProperty: keyof Tag | 'usageCount' = 'name'; // 'name' or 'usageCount'
+  sortProperty: keyof Tag | 'usageCount' | 'createdAt' = 'name'; 
   sortDirection: 'asc' | 'desc' = 'asc';
 
   constructor(private tagsService: TagsService) { }
@@ -27,10 +33,11 @@ export class AdminManageTagsComponent implements OnInit {
   loadTags(): void {
     this.isLoading = true;
     this.error = null;
+    this.formError = null;
     this.tagsService.getAllTags().subscribe({
       next: (data) => {
         this.tags = data;
-        this.applyFiltersAndSorting(); // Apply initial filtering and sorting
+        this.applyFiltersAndSorting();
         this.isLoading = false;
       },
       error: (err) => {
@@ -46,30 +53,42 @@ export class AdminManageTagsComponent implements OnInit {
 
     // Filtering
     if (this.searchTerm) {
+      const lowerSearchTerm = this.searchTerm.toLowerCase();
       tempTags = tempTags.filter(tag =>
-        tag.name.toLowerCase().includes(this.searchTerm.toLowerCase())
+        tag.name.toLowerCase().includes(lowerSearchTerm)
       );
     }
 
     // Sorting
     tempTags.sort((a, b) => {
-      let valA, valB;
+      let valA: any;
+      let valB: any;
 
-      if (this.sortProperty === 'usageCount') {
-        valA = a.usageCount ?? 0; // Default to 0 if undefined
-        valB = b.usageCount ?? 0; // Default to 0 if undefined
-      } else { // Default to 'name' or any other string property
-        valA = (a[this.sortProperty] as string)?.toLowerCase() || '';
-        valB = (b[this.sortProperty] as string)?.toLowerCase() || '';
+      switch (this.sortProperty) {
+        case 'name':
+          valA = a.name.toLowerCase();
+          valB = b.name.toLowerCase();
+          break;
+        case 'usageCount':
+          valA = a.usageCount ?? 0;
+          valB = b.usageCount ?? 0;
+          break;
+        case 'createdAt':
+          valA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          valB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          break;
+        default:
+          valA = a.name.toLowerCase();
+          valB = b.name.toLowerCase();
       }
 
-      let comparison = 0;
+      if (valA < valB) {
+        return this.sortDirection === 'asc' ? -1 : 1;
+      }
       if (valA > valB) {
-        comparison = 1;
-      } else if (valA < valB) {
-        comparison = -1;
+        return this.sortDirection === 'asc' ? 1 : -1;
       }
-      return this.sortDirection === 'asc' ? comparison : comparison * -1;
+      return 0;
     });
 
     this.filteredTags = tempTags;
@@ -81,7 +100,7 @@ export class AdminManageTagsComponent implements OnInit {
     this.applyFiltersAndSorting();
   }
 
-  changeSort(property: keyof Tag | 'usageCount'): void {
+  changeSort(property: keyof Tag | 'usageCount' | 'createdAt'): void {
     if (this.sortProperty === property) {
       this.sortDirection = this.sortDirection === 'asc' ? 'desc' : 'asc';
     } else {
@@ -91,22 +110,62 @@ export class AdminManageTagsComponent implements OnInit {
     this.applyFiltersAndSorting();
   }
 
-  deleteTag(tagId: string): void {
-    if (confirm('Are you sure you want to delete this tag? This action cannot be undone.')) {
-      this.isLoading = true; // Indicate loading state during delete
-      this.tagsService.deleteTag(tagId).subscribe({
-        next: () => {
-          // Optimistically update the UI
-          this.tags = this.tags.filter(tag => tag._id !== tagId);
-          this.applyFiltersAndSorting();
-          this.isLoading = false;
-        },
-        error: (err) => {
-          this.error = `Failed to delete tag: ${err.error?.message || 'Server error'}`;
-          console.error('Error deleting tag:', err);
-          this.isLoading = false;
-        }
+  saveTag(): void {
+    if (this.tagFormRef.invalid) {
+      this.formError = "Please ensure the tag name is valid.";
+      Object.keys(this.tagFormRef.controls).forEach(field => {
+        const control = this.tagFormRef.controls[field];
+        control.markAsTouched({ onlySelf: true });
       });
+      return;
     }
+
+    this.isLoading = true;
+    this.formError = null;
+
+    this.tagsService.createTag(this.tagFormModel).subscribe({
+      next: (newTag) => {
+        this.loadTags();
+        this.tagFormModel = { name: '' };
+        this.tagFormRef.resetForm();
+        this.isLoading = false;
+      },
+      error: (err) => {
+        console.error('Error creating tag:', err);
+        if (err.status === 409) {
+          this.formError = 'This tag name already exists.';
+        } else if (err.error && err.error.message && Array.isArray(err.error.message)) {
+          this.formError = `Failed to create tag: ${err.error.message.join(', ')}`;
+        } else if (err.error && typeof err.error.message === 'string') {
+          this.formError = `Failed to create tag: ${err.error.message}`;
+        }
+        else {
+          this.formError = 'An unexpected error occurred while creating the tag.';
+        }
+        this.isLoading = false;
+      }
+    });
+  }
+
+  deleteTag(tagId: string): void {
+    if (!confirm('Are you sure you want to delete this tag? This action cannot be undone.')) {
+      return;
+    }
+
+    this.isLoading = true;
+    this.error = null; // Clear previous main errors
+    this.tagsService.deleteTag(tagId).subscribe({
+      next: () => {
+        // this.tags = this.tags.filter(tag => tag._id !== tagId);
+        // this.applyFiltersAndSorting();
+        this.loadTags();
+        this.isLoading = false;
+      },
+      error: (err) => {
+        console.error('Error deleting tag:', err);
+        this.error = `Failed to delete tag. ${err.error?.message || ''}`;
+        this.isLoading = false;
+      }
+    });
   }
 }

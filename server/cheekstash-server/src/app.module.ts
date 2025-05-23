@@ -8,6 +8,7 @@ import { CheeksModule } from './cheeks/cheeks.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { AuthModule } from './auth/auth.module';
 import { CronModule } from './devTools/cron.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
 import { CategoriesModule } from './categories/categories.module'; // Import CategoriesModule
 import { TagsModule } from './tags/tags.module'; // Import TagsModule
 
@@ -41,7 +42,8 @@ import { TagsModule } from './tags/tags.module'; // Import TagsModule
     ReviewsModule, 
     CategoriesModule,
     TagsModule,
-    CronModule
+    CronModule, // Corrected module name
+    MaintenanceModule, // Added MaintenanceModule
   ],
   controllers: [AppController],
   providers: [AppService],

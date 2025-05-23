@@ -1,95 +1,135 @@
 <div class="container mx-auto p-4">
-    <div class="flex justify-between items-center mb-4">
+    <div class="flex justify-between items-center mb-6">
         <h2 class="text-2xl font-bold text-primary">Manage Tags</h2>
         <button routerLink="../" class="btn btn-sm btn-outline btn-secondary">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5"
                 stroke="currentColor" class="w-4 h-4 mr-2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+                <path stroke-linecap="round" stroke-linejoin="round"
+                    d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
             </svg>
             Back to Admin
         </button>
     </div>
 
-    <p class="mb-6 text-base-content/80">Tags are primarily created when a new "Cheek" (collection) is submitted. Here
-        you can view and delete existing tags if necessary.</p>
-
-    <!-- Search and Sort Controls -->
-    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 p-4 bg-base-200 rounded-lg shadow">
-        <div class="form-control w-full md:w-1/2">
-            <input type="text" placeholder="Search tags by name..." class="input input-bordered w-full"
-                [value]="searchTerm" (input)="onSearchTermChange($event)" />
-        </div>
-        <div class="flex gap-2">
-            <span class="label-text self-center">Sort by:</span>
-            <button class="btn btn-sm btn-outline" (click)="changeSort('name')"
-                [class.btn-active]="sortProperty === 'name'">
-                Name
-                <span *ngIf="sortProperty === 'name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
-            </button>
-            <button class="btn btn-sm btn-outline" (click)="changeSort('usageCount')"
-                [class.btn-active]="sortProperty === 'usageCount'">
-                Usage Count
-                <span *ngIf="sortProperty === 'usageCount'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
-            </button>
-        </div>
-    </div>
-
-    <app-loading-indicator [message]="'Loading tags...'" [size]="'lg'" *ngIf="isLoading && !filteredTags.length">
+    <app-loading-indicator [message]="'Loading tags...'" [size]="'lg'"
+        *ngIf="isLoading && !filteredTags.length">
     </app-loading-indicator>
 
-    <div *ngIf="error" class="alert alert-error shadow-lg mb-6">
+    <div *ngIf="error && !filteredTags.length" class="alert alert-error shadow-lg mb-6">
         <div>
             <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-6 w-6" fill="none"
                 viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 9 0 11-18 0 9 9 0 0118 0z" />
+                    d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             <span>{{ error }}</span>
-            <button (click)="loadTags()" *ngIf="!isLoading" class="btn btn-sm btn-outline ml-4">Try Reloading
-                Tags</button>
+            <button (click)="loadTags()" *ngIf="!isLoading" class="btn btn-sm btn-outline ml-4">Try
+                Again</button>
+        </div>
+    </div>
+
+    <div class="card bg-base-100 shadow-xl mb-8">
+        <div class="card-body">
+            <h3 class="text-xl font-semibold mb-4">Create New Tag</h3>
+            <form (ngSubmit)="saveTag()" #tagFormRef="ngForm" class="space-y-4">
+                <div>
+                    <label for="tagName" class="label">
+                        <span class="label-text">Tag Name</span>
+                    </label>
+                    <input type="text" id="tagName" name="tagName" placeholder="e.g., typescript, web-development"
+                        class="input input-bordered w-full" [(ngModel)]="tagFormModel.name" required minlength="2"
+                        maxlength="50" pattern="^[a-z0-9]+(?:-[a-z0-9]+)*$" #name="ngModel"
+                        [class.input-error]="name.invalid && (name.dirty || name.touched)">
+                    <div *ngIf="name.invalid && (name.dirty || name.touched)" class="text-error text-sm mt-1">
+                        <span *ngIf="name.errors?.['required']">Tag name is required.</span>
+                        <span *ngIf="name.errors?.['minlength']">Tag name must be at least 2 characters long.</span>
+                        <span *ngIf="name.errors?.['maxlength']">Tag name cannot exceed 50 characters.</span>
+                        <span *ngIf="name.errors?.['pattern']">Tag name must be lowercase, alphanumeric, and can contain hyphens (e.g., 'my-tag').</span>
+                    </div>
+                </div>
+
+                <div *ngIf="formError" class="alert alert-warning shadow-sm text-sm p-2 mt-2">
+                    <div>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="stroke-current flex-shrink-0 h-5 w-5" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        <span>{{ formError }}</span>
+                    </div>
+                </div>
+
+                <div class="card-actions justify-end">
+                    <button type="submit" class="btn btn-primary" [disabled]="tagFormRef.invalid || isLoading">Create Tag</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <hr *ngIf="tags.length > 0" class="my-8 border-base-300">
+
+    <!-- Search and Sort Controls -->
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4 p-4 bg-base-200 rounded-lg shadow"
+        *ngIf="tags.length > 0">
+        <div class="form-control w-full md:w-1/2">
+            <input type="text" placeholder="Search tags by name..."
+                class="input input-bordered w-full" [value]="searchTerm" (input)="onSearchTermChange($event)">
+        </div>
+        <div class="flex gap-2 flex-wrap">
+            <span class="label-text self-center">Sort by:</span>
+            <button class="btn btn-sm btn-outline" (click)="changeSort('name')" [class.btn-active]="sortProperty === 'name'">
+                Name {{ sortProperty === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : '' }}
+            </button>
+            <button class="btn btn-sm btn-outline" (click)="changeSort('usageCount')" [class.btn-active]="sortProperty === 'usageCount'">
+                Usage {{ sortProperty === 'usageCount' ? (sortDirection === 'asc' ? '▲' : '▼') : '' }}
+            </button>
+            <button class="btn btn-sm btn-outline hidden md:inline-flex" (click)="changeSort('createdAt')" [class.btn-active]="sortProperty === 'createdAt'">
+                Date {{ sortProperty === 'createdAt' ? (sortDirection === 'asc' ? '▲' : '▼') : '' }}
+            </button>
         </div>
     </div>
 
     <div class="overflow-x-auto" *ngIf="filteredTags.length > 0">
         <h3 class="text-xl font-semibold mb-4">Existing Tags ({{ filteredTags.length }})</h3>
         <app-loading-indicator [message]="'Refreshing tags list...'" [size]="'md'"
-            *ngIf="isLoading && filteredTags.length">
+            *ngIf="isLoading && filteredTags.length > 0">
         </app-loading-indicator>
         <table class="table w-full table-zebra shadow-lg">
             <thead>
                 <tr>
-                    <th (click)="changeSort('name')" class="cursor-pointer hover:bg-base-200">
-                        Name <span *ngIf="sortProperty === 'name'">{{ sortDirection === 'asc' ? '↑' : '↓' }}</span>
+                    <th class="cursor-pointer" (click)="changeSort('name')">
+                        Name
+                        <span *ngIf="sortProperty === 'name'">{{ sortDirection === 'asc' ? '▲' : '▼' }}</span>
                     </th>
-                    <th (click)="changeSort('usageCount')" class="cursor-pointer hover:bg-base-200">
-                        Usage Count <span *ngIf="sortProperty === 'usageCount'">{{ sortDirection === 'asc' ? '↑' : '↓'
-                            }}</span>
+                    <th class="cursor-pointer" (click)="changeSort('usageCount')">
+                        Usage Count
+                        <span *ngIf="sortProperty === 'usageCount'">{{ sortDirection === 'asc' ? '▲' : '▼' }}</span>
+                    </th>
+                    <th class="cursor-pointer hidden md:table-cell" (click)="changeSort('createdAt')">
+                        Created At
+                        <span *ngIf="sortProperty === 'createdAt'">{{ sortDirection === 'asc' ? '▲' : '▼' }}</span>
                     </th>
                     <th>Actions</th>
                 </tr>
             </thead>
             <tbody>
                 <tr *ngFor="let tag of filteredTags" class="hover">
-                    <td><strong>{{ tag.name }}</strong></td>
+                    <td>{{ tag.name }}</td>
+                    <td>{{ tag.usageCount || 0 }}</td>
+                    <td class="hidden md:table-cell">{{ tag.createdAt | date:'mediumDate' }}</td>
                     <td>
-                        <span class="badge badge-neutral" *ngIf="tag.usageCount !== undefined">{{ tag.usageCount
-                            }}</span>
-                        <span *ngIf="tag.usageCount === undefined" class="text-base-content/50">N/A</span>
-                    </td>
-                    <td>
-                        <button class="btn btn-sm btn-outline btn-error" (click)="deleteTag(tag._id)"
-                            [disabled]="isLoading">Delete</button>
+                        <button (click)="deleteTag(tag._id)" class="btn btn-xs btn-error btn-outline" [disabled]="isLoading">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-4 h-4"><path stroke-linecap="round" stroke-linejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12.56 0c1.153 0 2.243.032 3.223.094M7.5 3.75l.75 4.5M21.75 3.75l-.75 4.5m-16.5 0L5.25 21m13.5-16.5L18.75 21m-9-16.5h6.375" /></svg>
+                            Delete
+                        </button>
                     </td>
                 </tr>
             </tbody>
         </table>
     </div>
 
-    <div *ngIf="!isLoading && !error && tags.length > 0 && filteredTags.length === 0" class="text-center py-8">
+    <div *ngIf="!isLoading && !error && tags.length > 0 && filteredTags.length === 0"
+        class="text-center py-8">
         <p class="text-lg text-base-content/70">No tags match your search criteria "{{ searchTerm }}".</p>
     </div>
 
     <div *ngIf="!isLoading && !error && tags.length === 0" class="text-center py-8">
-        <p class="text-lg text-base-content/70">No tags found. Tags are added when Cheeks are created.</p>
+        <p class="text-lg text-base-content/70">No tags found. You can create one using the form above.</p>
     </div>
 </div>

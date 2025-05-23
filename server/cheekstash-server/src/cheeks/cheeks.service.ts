@@ -231,6 +231,11 @@ export class CheeksService {
 
     try {
       let savedCheek = await newCheeks.save();
+      if (tagIds && tagIds.length > 0) {
+        for (const tagId of tagIds) {
+          await this.tagsService.updateTagUsageCount(tagId.toString(), 1);
+        }
+      }
       savedCheek = await savedCheek.populate(this.cheekPopulationPaths);
       return savedCheek;
     } catch (error: any) {
