@@ -1,232 +1,99 @@
-// const mockBcryptCompare = jest.fn();
-// const mockBcryptHash = jest.fn();
+import { Test, TestingModule } from '@nestjs/testing';
+import { AuthService } from './auth.service';
+import { UsersService } from '../users/users.service';
+import { JwtService } from '@nestjs/jwt';
+import { UnauthorizedException, NotFoundException } from '@nestjs/common';
+import * as bcrypt from 'bcrypt';
 
-// jest.mock('bcrypt', () => ({
-//   compare: mockBcryptCompare,
-//   hash: mockBcryptHash,
-// }));
+const mockUsersService = {
+    findByEmail: jest.fn(),
+    findById: jest.fn(),
+    changePassword: jest.fn(),
+    deleteUser: jest.fn(),
+};
+const mockJwtService = {
+    sign: jest.fn(),
+};
 
-// import { Test, TestingModule } from '@nestjs/testing';
-// import { JwtService } from '@nestjs/jwt';
-// import { AuthService } from './auth.service';
-// import { UsersService } from '../users/users.service';
-// import { UserDocument } from '../users/schemas/user.schema';
-// import { NotFoundException, UnauthorizedException } from '@nestjs/common';
-// import * as bcrypt from 'bcrypt'; // Keep standard import if needed elsewhere
-// import { Types } from 'mongoose';
-// import { ChangePasswordDto } from '../users/dto/change-password.dto';
+jest.mock('bcrypt');
 
-// describe('AuthService', () => {
-//   let service: AuthService;
-//   let usersService: UsersService;
-//   let jwtService: JwtService;
+describe('AuthService', () => {
+    let service: AuthService;
+    let usersService: typeof mockUsersService;
+    let jwtService: typeof mockJwtService;
 
-//   // Use the mockUsersService object when providing the value
-//   const mockUsersServiceInstance = {
-//     findByEmail: jest.fn(),
-//     changePassword: jest.fn(),
-//     deleteUser: jest.fn(),
-//   };
+    beforeEach(async () => {
+        const module: TestingModule = await Test.createTestingModule({
+            providers: [
+                AuthService,
+                { provide: UsersService, useValue: mockUsersService },
+                { provide: JwtService, useValue: mockJwtService },
+            ],
+        }).compile();
+        service = module.get<AuthService>(AuthService);
+        usersService = module.get(UsersService);
+        jwtService = module.get(JwtService);
+        jest.clearAllMocks();
+    });
 
-//   const mockJwtServiceInstance = {
-//     sign: jest.fn(),
-//   };
+    describe('validateUser', () => {
+        it('should return user if credentials valid', async () => {
+            const user = { passwordHash: 'hash' };
+            usersService.findByEmail.mockResolvedValue(user);
+            (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+            const result = await service.validateUser('a@b.com', 'pw');
+            expect(result).toBe(user);
+        });
+        it('should throw if user not found', async () => {
+            usersService.findByEmail.mockResolvedValue(null);
+            await expect(service.validateUser('a@b.com', 'pw')).rejects.toThrow(NotFoundException);
+        });
+        it('should throw if password invalid', async () => {
+            const user = { passwordHash: 'hash' };
+            usersService.findByEmail.mockResolvedValue(user);
+            (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+            await expect(service.validateUser('a@b.com', 'pw')).rejects.toThrow(UnauthorizedException);
+        });
+    });
 
-//   beforeEach(async () => {
-//     // Reset mocks
-//     mockBcryptCompare.mockClear();
-//     mockBcryptHash.mockClear();
-//     Object.values(mockUsersServiceInstance).forEach((mockFn) =>
-//       mockFn.mockReset(),
-//     );
-//     Object.values(mockJwtServiceInstance).forEach((mockFn) =>
-//       mockFn.mockReset(),
-//     );
+    describe('login', () => {
+        it('should return token and username', async () => {
+            jwtService.sign.mockReturnValue('jwt');
+            const user = { _id: '1', username: 'u', role: 'user' };
+            const result = await service.login(user as any);
+            expect(result).toEqual({ token: 'jwt', username: 'u' });
+            expect(jwtService.sign).toHaveBeenCalledWith({ id: '1', username: 'u', role: 'user' });
+        });
+    });
 
-//     const module: TestingModule = await Test.createTestingModule({
-//       providers: [
-//         AuthService,
-//         { provide: UsersService, useValue: mockUsersServiceInstance },
-//         { provide: JwtService, useValue: mockJwtServiceInstance },
-//       ],
-//     }).compile();
+    describe('getUserProfile', () => {
+        it('should return user profile', async () => {
+            const user = { id: '1', username: 'u' };
+            usersService.findById.mockResolvedValue(user);
+            const result = await service.getUserProfile('1');
+            expect(result).toBe(user);
+        });
+        it('should throw if user not found', async () => {
+            usersService.findById.mockResolvedValue(null);
+            await expect(service.getUserProfile('1')).rejects.toThrow(NotFoundException);
+        });
+    });
 
-//     service = module.get<AuthService>(AuthService);
-//     usersService = module.get<UsersService>(UsersService);
-//     jwtService = module.get<JwtService>(JwtService);
-//   });
+    describe('changePassword', () => {
+        it('should call usersService.changePassword', async () => {
+            usersService.changePassword.mockResolvedValue({ message: 'ok' });
+            const result = await service.changePassword('1', { oldPassword: 'a', newPassword: 'b' });
+            expect(result).toEqual({ message: 'ok' });
+        });
+    });
 
-//   describe('validateUser', () => {
-//     const email = 'test@test.com';
-//     const password = 'password';
-//     const mockUser = {
-//       _id: new Types.ObjectId(),
-//       email: email,
-//       username: 'test',
-//       passwordHash: 'hashedPassword',
-//       role: 'user',
-//     } as UserDocument;
-
-//     it('should return user if credentials are valid', async () => {
-//       // Arrange
-//       mockUsersServiceInstance.findByEmail.mockResolvedValueOnce(mockUser);
-//       mockBcryptCompare.mockResolvedValueOnce(true);
-
-//       // Act
-//       const result = await service.validateUser(email, password);
-
-//       // Assert
-//       expect(mockUsersServiceInstance.findByEmail).toHaveBeenCalledWith(
-//         email,
-//         true,
-//       );
-//       expect(bcrypt.compare).toHaveBeenCalledWith(
-//         password,
-//         mockUser.passwordHash,
-//       );
-//       expect(result).toEqual(mockUser);
-//     });
-//     it('should throw NotFoundException if user not found', async () => {
-//       // Arrange
-//       mockUsersServiceInstance.findByEmail.mockResolvedValueOnce(null);
-//       // Act & Assert
-//       await expect(service.validateUser(email, password)).rejects.toThrow(
-//         NotFoundException,
-//       );
-//       expect(mockUsersServiceInstance.findByEmail).toHaveBeenCalledWith(
-//         email,
-//         true,
-//       );
-//       expect(bcrypt.compare).not.toHaveBeenCalled();
-//     });
-//     it('should throw UnauthorizedException if password does not match', async () => {
-//       // Arrange
-//       mockUsersServiceInstance.findByEmail.mockResolvedValueOnce(mockUser);
-//       mockBcryptCompare.mockResolvedValueOnce(false);
-//       // Act & Assert
-//       await expect(service.validateUser(email, password)).rejects.toThrow(
-//         UnauthorizedException,
-//       );
-//       expect(mockUsersServiceInstance.findByEmail).toHaveBeenCalledWith(
-//         email,
-//         true,
-//       );
-//       expect(bcrypt.compare).toHaveBeenCalledWith(
-//         password,
-//         mockUser.passwordHash,
-//       );
-//     });
-//   });
-
-//   describe('login', () => {
-//     // Add role to mock user if it's included in the payload
-//     const mockUser = {
-//       _id: new Types.ObjectId(),
-//       username: 'loginUser',
-//       role: 'user',
-//     } as UserDocument;
-//     const expectedToken = 'mockJwtToken';
-
-//     it('should sign a JWT and return token and username', async () => {
-//       // Arrange
-//       mockJwtServiceInstance.sign.mockReturnValueOnce(expectedToken);
-
-//       // Act
-//       const result = await service.login(mockUser);
-
-//       // Assert
-
-//       expect(mockJwtServiceInstance.sign).toHaveBeenCalledWith({
-//         id: mockUser._id,
-//         username: mockUser.username,
-//         role: mockUser.role,
-//       });
-
-//       expect(result).toEqual({
-//         token: expectedToken,
-//         username: mockUser.username,
-//       });
-//     });
-//   });
-
-//   // --- Test changePassword ---
-//   describe('changePassword', () => {
-//     const userId = 'userId';
-//     const changePasswordDto: ChangePasswordDto = {
-//       oldPassword: 'old',
-//       newPassword: 'new',
-//     };
-//     const successMessage = { message: 'Password updated successfully' };
-
-//     it('should delegate password change to UsersService', async () => {
-//       // Arrange
-//       mockUsersServiceInstance.changePassword.mockResolvedValueOnce(
-//         successMessage,
-//       );
-
-//       // Act
-//       const result = await service.changePassword(userId, changePasswordDto);
-
-//       // Assert
-//       expect(mockUsersServiceInstance.changePassword).toHaveBeenCalledWith(
-//         userId,
-//         changePasswordDto,
-//       );
-//       expect(result).toEqual(successMessage);
-//     });
-
-//     it('should bubble up errors from UsersService', async () => {
-//       // Arrange
-//       const error = new UnauthorizedException('Incorrect old password');
-//       mockUsersServiceInstance.changePassword.mockRejectedValueOnce(error);
-
-//       // Act & Assert
-//       await expect(
-//         service.changePassword(userId, changePasswordDto),
-//       ).rejects.toThrow(UnauthorizedException);
-//       expect(mockUsersServiceInstance.changePassword).toHaveBeenCalledWith(
-//         userId,
-//         changePasswordDto,
-//       );
-//     });
-//   });
-
-//   // --- Test deleteUser ---
-//   describe('deleteUser', () => {
-//     const requester = { id: 'userId', role: 'user' };
-//     const confirmPassword = 'password';
-//     const successMessage = { message: 'User deleted' };
-
-//     it('should delegate user deletion to UsersService', async () => {
-//       // Arrange
-//       mockUsersServiceInstance.deleteUser.mockResolvedValueOnce(successMessage);
-
-//       // Act
-//       const result = await service.deleteUser(requester, confirmPassword);
-
-//       // Assert
-//       expect(mockUsersServiceInstance.deleteUser).toHaveBeenCalledWith(
-//         requester.id,
-//         confirmPassword,
-//         requester,
-//       );
-//       expect(result).toEqual(successMessage);
-//     });
-
-//     it('should bubble up errors from UsersService during deletion', async () => {
-//       // Arrange
-//       const error = new UnauthorizedException('Password confirmation failed');
-//       mockUsersServiceInstance.deleteUser.mockRejectedValueOnce(error);
-
-//       // Act & Assert
-//       await expect(
-//         service.deleteUser(requester, confirmPassword),
-//       ).rejects.toThrow(UnauthorizedException);
-//       expect(mockUsersServiceInstance.deleteUser).toHaveBeenCalledWith(
-//         requester.id,
-//         confirmPassword,
-//         requester,
-//       );
-//     });
-//   });
-// });
+    describe('deleteUser', () => {
+        it('should call usersService.deleteUser', async () => {
+            usersService.deleteUser.mockResolvedValue({ message: 'deleted' });
+            const requester = { id: '1', role: 'user' };
+            const result = await service.deleteUser(requester, 'pw');
+            expect(result).toEqual({ message: 'deleted' });
+            expect(usersService.deleteUser).toHaveBeenCalledWith('1', 'pw', requester);
+        });
+    });
+});
