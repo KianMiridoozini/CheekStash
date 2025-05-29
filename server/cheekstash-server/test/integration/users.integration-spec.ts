@@ -67,22 +67,22 @@ describe('UsersController (Integration)', () => {
 
   // Helper to create user via Model (direct DB interaction for setup)
   const createUserViaModel = async (dto: CreateUserDto, role: 'user' | 'admin' = 'user') => {
-      const hashedPassword = await bcrypt.hash(dto.password, 10); // Need bcrypt if using model directly
-      const newUser = new userModel({
-        username: dto.username,
-        email: dto.email,
-        passwordHash: hashedPassword,
-        profile: {}, // Ensure profile is initialized
-        role: role, // Allow specifying role, default to 'user'
-      });
-      return await newUser.save(); // Returns full UserDocument
+    const hashedPassword = await bcrypt.hash(dto.password, 10); // Need bcrypt if using model directly
+    const newUser = new userModel({
+      username: dto.username,
+      email: dto.email,
+      passwordHash: hashedPassword,
+      profile: {}, // Ensure profile is initialized
+      role: role, // Allow specifying role, default to 'user'
+    });
+    return await newUser.save(); // Returns full UserDocument
   };
-  
+
   // Helper to create cheek via Model (direct DB interaction for setup)
-  const createCheekViaModel = async (cheekData: { owner: Types.ObjectId; title: string; categoryId: Types.ObjectId; isPublic: boolean }) => {
-      const cheekModel = app.get<Model<any>>(getModelToken('Cheek')); // Replace 'Cheek' with the actual model name if different
-      const newCheek = new cheekModel(cheekData);
-      return await newCheek.save();
+  const createCheekViaModel = async (cheekData: { owner: Types.ObjectId; title: string; slug: string; categoryId: Types.ObjectId; isPublic: boolean }) => {
+    const cheekModel = app.get<Model<any>>(getModelToken('Cheeks'));
+    const newCheek = new cheekModel(cheekData);
+    return await newCheek.save();
   };
 
   const createUserDirectly = async (
@@ -536,14 +536,14 @@ describe('UsersController (Integration)', () => {
       const invalidProfileDto = {
         displayName: 'Valid Name',
         bio: 'Valid Bio',
-        avatarUrl: 'not-a-valid-url', 
-      } as any; 
-      
+        avatarUrl: 'not-a-valid-url',
+      } as any;
+
       const response = await request(httpServer)
         .patch(profileUrl)
         .set('Authorization', `Bearer ${authToken}`)
         .send(invalidProfileDto);
-      
+
       expect(response.status).toBe(400);
       expect(response.body.message).toBeInstanceOf(Array);
       // Expect error due to non-whitelisted property 'avatarUrl'
@@ -551,7 +551,7 @@ describe('UsersController (Integration)', () => {
     });
 
     it('should ignore profileImagePublicId if sent in update (not leak to response)', async () => {
-      const dtoWithImageId: UpdateUserDto = { 
+      const dtoWithImageId: UpdateUserDto = {
         displayName: 'DisplayName With ImageId Test',
       };
       const response = await request(httpServer)
@@ -566,162 +566,353 @@ describe('UsersController (Integration)', () => {
     });
   });
 
-  // // --- Tests for GET /api/users/by-username/:username ---
-  // describe('GET /api/users/by-username/:username', () => {
-  //   const baseUsernameUrl = '/api/users/by-username';
+  // --- Tests for GET /api/users/by-username/:username ---
+  describe('GET /api/users/by-username/:username', () => {
+    const baseUsernameUrl = '/api/users/by-username';
 
-  //   it('should find a user by exact username (reflecting DB sanitization)', async () => {
-  //     const rawUsername = 'findMeByUsername_INT';
-  //     // User is created with rawUsername, but pre-save hook sanitizes it.
-  //     const user = await createUserViaModel({
-  //       username: rawUsername, // Will be saved as e.g. 'findmebyusernameint'
-  //       email: 'findmebyusername_int@example.com',
-  //       password: 'PasswordFindMe1!',
-  //     });
-  //     // user.username now holds the sanitized username from the DB.
+    it('should find a user by exact username (reflecting DB sanitization)', async () => {
+      const rawUsername = 'findMeByUsername_INT';
+      const user = await createUserViaApi({
+        username: rawUsername,
+        email: 'findmebyusername_int@example.com',
+        password: 'PasswordFindMe1!',
+      });
+      const response = await request(httpServer).get(
+        `${baseUsernameUrl}/${encodeURIComponent(user.username)}`,
+      );
+      expect(response.status).toBe(200);
+      expect(response.body.username).toEqual(user.username);
+      expect(response.body._id).toEqual(user._id);
+      expect(response.body.id).toEqual(user.id);
+      expect(response.body.passwordHash).toBeUndefined();
+      expect(response.body.email).toBeDefined();
+      expect(response.body.role).toBeDefined();
+    });
 
-  //     const response = await request(httpServer).get(
-  //       `${baseUsernameUrl}/${encodeURIComponent(user.username)}`, // Request with the sanitized and URL-encoded username
-  //     );
-  //     expect(response.status).toBe(200);
-  //     expect(response.body.username).toEqual(user.username); // Expect sanitized username in response
-  //     expect(response.body._id).toEqual((user._id as Types.ObjectId).toString());
-  //     expect(response.body.id).toEqual((user._id as Types.ObjectId).toString()); // virtual id
-  //     expect(response.body.passwordHash).toBeUndefined();
-  //     expect(response.body.email).toBeDefined();
-  //     expect(response.body.role).toBeDefined();
-  //   });
+    it('should return 404 if user not found by username (case-sensitive check)', async () => {
+      await createUserViaModel({
+        username: 'AnotherUser_INT',
+        email: 'anotheruser_int@example.com',
+        password: 'PasswordAnother1!',
+      });
+      const lookupUsername = 'anotheruser_int_lower';
+      const response = await request(httpServer).get(
+        `${baseUsernameUrl}/${lookupUsername}`,
+      );
+      expect(response.status).toBe(404);
+      expect(response.body.message).toEqual(
+        `User with username ${lookupUsername} not found`,
+      );
+    });
 
-  //   it('should return 404 if user not found by username (case-sensitive check)', async () => {
-  //     // This test assumes the lookup key itself is not further sanitized by the service,
-  //     // or if it is, the sanitization results in a name that doesn't exist.
-  //     // Create a user whose sanitized name will be 'anotheruserint'
-  //     await createUserViaModel({
-  //       username: 'AnotherUser_INT',
-  //       email: 'anotheruser_int@example.com',
-  //       password: 'PasswordAnother1!',
-  //     });
-  //     // Request with a username that, if the service *doesn't* sanitize, won't match 'anotheruserint'.
-  //     // If the service *does* sanitize 'anotheruser_int_lower' to 'anotheruserintlower', it also won't match.
-  //     // This test is primarily checking that a non-matching (potentially due to case or slight variation
-  //     // not handled by service-side sanitization, if any) username results in 404.
-  //     const lookupUsername = 'anotheruser_int_lower'; // This will not match 'anotheruserint'
-  //     const response = await request(httpServer).get(
-  //       `${baseUsernameUrl}/${lookupUsername}`,
-  //     );
-  //     expect(response.status).toBe(404);
-  //     // The message might reflect the lookupUsername or a sanitized version if service sanitizes
-  //     // For now, let's keep the expectation based on the provided lookupUsername
-  //     expect(response.body.message).toEqual(
-  //       `User with username ${lookupUsername} not found`, // Or similar, depending on service error formatting
-  //     );
-  //   });
+    it('should return 404 if username does not exist in the database', async () => {
+      const response = await request(httpServer).get(
+        `${baseUsernameUrl}/nonExistentUser_INT`,
+      );
+      expect(response.status).toBe(404);
+      expect(response.body.message).toEqual(
+        'User with username nonExistentUser_INT not found',
+      );
+    });
 
-  //   it('should return 404 if username does not exist in the database', async () => {
-  //     const response = await request(httpServer).get(
-  //       `${baseUsernameUrl}/nonExistentUser_INT`,
-  //     );
-  //     expect(response.status).toBe(404);
-  //     expect(response.body.message).toEqual(
-  //       'User with username nonExistentUser_INT not found',
-  //     );
-  //   });
+    it('should find user with special characters in original username (after sanitization)', async () => {
+      const complexRawUsername = 'user@name#special';
+      const user = await createUserViaApi({
+        username: complexRawUsername,
+        email: 'complex_int@example.com',
+        password: 'PasswordComplex1!',
+      });
+      const response = await request(httpServer).get(
+        `${baseUsernameUrl}/${encodeURIComponent(user.username)}`,
+      );
+      expect(response.status).toBe(200);
+      expect(response.body.username).toEqual(user.username);
+    });
+  });
 
-  //   it('should find user with special characters in original username (after sanitization)', async () => {
-  //     const complexRawUsername = 'user@name#special'; // e.g. sanitized to 'usernamespecial'
-  //     const user = await createUserViaModel({
-  //       username: complexRawUsername,
-  //       email: 'complex_int@example.com',
-  //       password: 'PasswordComplex1!',
-  //     });
-  //     // user.username is now the sanitized version, e.g., 'usernamespecial'
-  //     // This sanitized version is URL-safe.
+  // --- Tests for GET /api/users/by-cheek-count ---
+  describe('GET /api/users/by-cheek-count', () => {
+    const cheekCountUrl = '/api/users/by-cheek-count';
 
-  //     const response = await request(httpServer).get(
-  //       `${baseUsernameUrl}/${encodeURIComponent(user.username)}`, // Request with the sanitized, URL-encoded (and URL-safe) username
-  //     );
-  //     expect(response.status).toBe(200);
-  //     expect(response.body.username).toEqual(user.username); // Expect sanitized username
-  //   });
-  // });
+    let userA: any;
+    let userB: any;
+    let userC: any;
 
-  // // --- Tests for GET /api/users/by-cheek-count ---
-  // describe('GET /api/users/by-cheek-count', () => {
-  //   const cheekCountUrl = '/api/users/by-cheek-count';
+    beforeEach(async () => {
+      await userModel.deleteMany({});
+      userA = await createUserViaModel({ username: 'CheekUserA_INT_CC', email: 'cheeka_int_cc@example.com', password: 'password' });
+      userB = await createUserViaModel({ username: 'CheekUserB_INT_CC', email: 'cheekb_int_cc@example.com', password: 'password' });
+      await createCheekViaModel({ owner: userB._id as Types.ObjectId, title: 'CheekB1', slug: 'cheekb1', categoryId: new Types.ObjectId(), isPublic: true });
+      await createCheekViaModel({ owner: userB._id as Types.ObjectId, title: 'CheekB2', slug: 'cheekb2', categoryId: new Types.ObjectId(), isPublic: true });
+      userC = await createUserViaModel({ username: 'CheekUserC', email: 'cheekc@example.com', password: 'password' });
+      await createCheekViaModel({ owner: userC._id as Types.ObjectId, title: 'CheekC1', slug: 'cheekc1', categoryId: new Types.ObjectId(), isPublic: true });
+    });
 
-  //   beforeAll(async () => {
-  //     await userModel.deleteMany({});
-  //     // User A: 0 cheeks (will be created but no cheeks associated)
-  //     await createUserViaModel({ username: 'CheekUserA_INT_CC', email: 'cheeka_int_cc@example.com', password: 'password' });
-  //     // User B: 2 cheeks
-  //     const userB = await createUserViaModel({ username: 'CheekUserB_INT_CC', email: 'cheekb_int_cc@example.com', password: 'password' });
-  //     await createCheekViaModel({ owner: userB._id as Types.ObjectId, title: 'CheekB1', categoryId: new Types.ObjectId(), isPublic: true });
-  //     await createCheekViaModel({ owner: userB._id as Types.ObjectId, title: 'CheekB2', categoryId: new Types.ObjectId(), isPublic: true });
-  //     // User C: 1 cheek
-  //     const userC = await createUserViaModel({ username: 'CheekUserC', email: 'cheekc@example.com', password: 'password' });
-  //     await createCheekViaModel({ owner: userC._id as Types.ObjectId, title: 'CheekC1', categoryId: new Types.ObjectId(), isPublic: true });
-  //   });
+    it('should return 400 if the "min" query parameter is missing for by-cheek-count', async () => {
+      const response = await request(httpServer).get(cheekCountUrl);
+      expect(response.status).toBe(400);
+      expect(response.body.message).toEqual('Minimum cheek count must be a non-negative number.');
+      expect(response.body.error).toEqual('Bad Request');
+    });
 
-  //   it('should return 400 if the "min" query parameter is missing for by-cheek-count', async () => {
-  //     const response = await request(httpServer).get(cheekCountUrl); // No min query param
-  //     expect(response.status).toBe(400);
-  //     expect(response.body.message).toEqual('Minimum cheek count must be a non-negative number.');
-  //     expect(response.body.error).toEqual('Bad Request');
-  //   });
+    it('should return 400 if the "min" query parameter is invalid (negative)', async () => {
+      const response = await request(httpServer).get(`${cheekCountUrl}?min=-1`);
+      expect(response.status).toBe(400);
+      expect(response.body.message).toEqual('Minimum cheek count must be a non-negative number.');
+      expect(response.body.error).toEqual('Bad Request');
+    });
 
-  //   it('should filter users by minimum cheek count if min query param is valid', async () => {
-  //     const response = await request(httpServer).get(`${cheekCountUrl}?min=1`); // Example min value
-  //     expect(response.status).toBe(200);
-  //     expect(response.body).toBeInstanceOf(Array);
-  //     // Assertions would depend on actual data and service logic
-  //     // e.g., response.body.forEach(user => expect(user.cheekCount).toBeGreaterThanOrEqual(1));
-  //   });
+    it('should return 400 if the "min" query parameter is invalid (not a number)', async () => {
+      const response = await request(httpServer).get(`${cheekCountUrl}?min=abc`);
+      expect(response.status).toBe(400);
+      expect(response.body.message).toEqual('Minimum cheek count must be a non-negative number.');
+      expect(response.body.error).toEqual('Bad Request');
+    });
 
-  //   // Test for invalid 'min' values are already above.
-  //   // Test for missing 'min' param:
-  //   it('should return 400 when min query param is missing for by-cheek-count', async () => {
-  //     const response = await request(httpServer).get(cheekCountUrl); // No min
-  //     expect(response.status).toBe(400);
-  //     expect(response.body.message).toEqual('Minimum cheek count must be a non-negative number.');
-  //     expect(response.body.error).toEqual('Bad Request');
-  //   });
-  // });
+    it('should filter users by minimum cheek count if min query param is valid', async () => {
+      const response = await request(httpServer).get(`${cheekCountUrl}?min=1`);
+      expect(response.status).toBe(200);
+      expect(Array.isArray(response.body)).toBe(true);
+      expect(response.body.length).toBeGreaterThanOrEqual(1);
+      response.body.forEach(user => {
+        expect(user).toHaveProperty('username');
+        expect(user).toHaveProperty('email');
+        expect(user).toHaveProperty('role');
+        expect(user).not.toHaveProperty('passwordHash');
+      });
+    });
+  });
 
   // --- Tests for PATCH /api/users/admin/:userIdToUpdate/role (Admin Only) ---
   describe('PATCH /api/users/admin/:userIdToUpdate/role', () => {
-    // const baseAdminRoleUrl = '/api/users/admin'; // e.g., /api/users/admin/someUserId
+    const baseAdminRoleUrl = '/api/users/admin'; // e.g., /api/users/admin/someUserId/role
+    let adminUser: UserDocument;
+    let regularUserToken: string;
+    let targetUser: UserDocument;
+    let adminToken: string;
 
-    // TODO: beforeEach to create an admin user, a regular user for auth, and a target user
-    // let adminToken: string;
-    // let regularUserToken: string;
-    // let targetUser: UserDocument;
+    beforeEach(async () => {
+      // Create an admin user
+      adminUser = await createUserViaModel({
+        username: 'admin_role_changer_int',
+        email: 'admin_role_changer_int@example.com',
+        password: 'PasswordAdminRole1!',
+      }, 'admin');
+      adminToken = jwtService.sign({ id: (adminUser._id as Types.ObjectId).toString(), username: adminUser.username, role: adminUser.role });
 
-    it.todo('should allow an admin to change a user role to "admin"');
-    it.todo('should allow an admin to change a user role to "user"');
-    it.todo('should return 403 if a non-admin user tries to change a role');
-    it.todo('should return 401 if no authentication token is provided');
-    it.todo('should return 404 if the target user ID does not exist');
-    it.todo('should return 400 if the provided role is invalid (e.g., "moderator")');
-    it.todo('should return 400 if trying to change the role of a non-existent user ID format');
-    it.todo('should not allow an admin to change their own role via this endpoint (optional, depends on policy)');
+      // Create a regular user (for testing non-admin access attempt)
+      const regularUser = await createUserViaModel({
+        username: 'regular_role_user_int',
+        email: 'regular_role_user_int@example.com',
+        password: 'PasswordRegularRole1!',
+      }, 'user');
+      regularUserToken = jwtService.sign({ id: (regularUser._id as Types.ObjectId).toString(), username: regularUser.username, role: regularUser.role });
+
+      // Create a target user whose role will be changed
+      targetUser = await createUserViaModel({
+        username: 'target_role_user_int',
+        email: 'target_role_user_int@example.com',
+        password: 'PasswordTargetRole1!',
+      }, 'user'); // Starts as a regular user
+    });
+
+    it('should allow an admin to change a user role to "admin"', async () => {
+      const response = await request(httpServer)
+        .patch(`${baseAdminRoleUrl}/${(targetUser._id as Types.ObjectId).toString()}/role`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ role: 'admin' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.role).toEqual('admin');
+
+      const updatedUser = await userModel.findById(targetUser._id);
+      expect(updatedUser!.role).toEqual('admin');
+    });
+
+    it('should allow an admin to change a user role to "user"', async () => {
+      // First, make the target user an admin
+      targetUser.role = 'admin';
+      await targetUser.save();
+
+      const response = await request(httpServer)
+        .patch(`${baseAdminRoleUrl}/${(targetUser._id as Types.ObjectId).toString()}/role`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ role: 'user' });
+
+      expect(response.status).toBe(200);
+      expect(response.body.role).toEqual('user');
+
+      const updatedUser = await userModel.findById(targetUser._id);
+      expect(updatedUser!.role).toEqual('user');
+    });
+
+    it('should return 403 if a non-admin user tries to change a role', async () => {
+      const response = await request(httpServer)
+        .patch(`${baseAdminRoleUrl}/${(targetUser._id as Types.ObjectId).toString()}/role`)
+        .set('Authorization', `Bearer ${regularUserToken}`)
+        .send({ role: 'admin' });
+
+      expect(response.status).toBe(403);
+    });
+
+    it('should return 401 if no authentication token is provided', async () => {
+      const response = await request(httpServer)
+        .patch(`${baseAdminRoleUrl}/${(targetUser._id as Types.ObjectId).toString()}/role`)
+        .send({ role: 'admin' });
+
+      expect(response.status).toBe(401);
+    });
+
+    it('should return 404 if the target user ID does not exist', async () => {
+      const nonExistentUserId = new Types.ObjectId().toHexString();
+      const response = await request(httpServer)
+        .patch(`${baseAdminRoleUrl}/${nonExistentUserId}/role`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ role: 'admin' });
+
+      expect(response.status).toBe(404);
+    });
+
+    it('should return 400 if the provided role is invalid (e.g., "moderator")', async () => {
+      const response = await request(httpServer)
+        .patch(`${baseAdminRoleUrl}/${(targetUser._id as Types.ObjectId).toString()}/role`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ role: 'moderator' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toEqual(['role must be one of the following values: user, admin']);
+    });
+
+    it('should return 400 if trying to change the role of a non-existent user ID format', async () => {
+      const response = await request(httpServer)
+        .patch(`${baseAdminRoleUrl}/invalidUserIdFormat/role`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ role: 'admin' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toEqual('Invalid target user ID format.');
+    });
+
+    it('should not allow an admin to change their own role via this endpoint', async () => {
+      const response = await request(httpServer)
+        .patch(`${baseAdminRoleUrl}/${(adminUser._id as Types.ObjectId).toString()}/role`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ role: 'user' });
+
+      expect(response.status).toBe(400); 
+      expect(response.body.message).toEqual('Admins cannot change their own role using this endpoint.');
+      const adminInDb = await userModel.findById(adminUser._id);
+      expect(adminInDb!.role).toEqual('admin'); // Role should remain admin
+    });
   });
 
   // --- Tests for DELETE /api/users/admin/:userIdToDelete (Admin Only) ---
   describe('DELETE /api/users/admin/:userIdToDelete', () => {
-    // const baseAdminDeleteUrl = '/api/users/admin'; // e.g., /api/users/admin/someUserId
+    const baseAdminDeleteUrl = '/api/users/admin'; // e.g., /api/users/admin/someUserId
+    let adminUser: UserDocument;
+    let regularUser: UserDocument;
+    let userToDelete: UserDocument;
+    let adminToken: string;
+    let regularUserToken: string;
 
-    // TODO: beforeEach to create an admin user, a regular user for auth, and a target user to delete
-    // let adminToken: string;
-    // let regularUserToken: string;
-    // let userToDelete: UserDocument;
-    // let selfDeletingAdmin: UserDocument;
+    beforeEach(async () => {
+      // Create an admin user
+      adminUser = await createUserViaModel({
+        username: 'admin_deleter_int',
+        email: 'admin_deleter_int@example.com',
+        password: 'PasswordAdminDelete1!',
+      }, 'admin');
+      adminToken = jwtService.sign({ id: (adminUser._id as Types.ObjectId).toString(), username: adminUser.username, role: adminUser.role });
 
+      // Create a regular user (for testing non-admin access)
+      regularUser = await createUserViaModel({
+        username: 'regular_deleter_int',
+        email: 'regular_deleter_int@example.com',
+        password: 'PasswordRegularDelete1!',
+      }, 'user');
+      regularUserToken = jwtService.sign({ id: (regularUser._id as Types.ObjectId).toString(), username: regularUser.username, role: regularUser.role });
 
-    it.todo('should allow an admin to delete another user');
-    it.todo('should return 403 if a non-admin user tries to delete a user');
-    it.todo('should return 401 if no authentication token is provided');
-    it.todo('should return 404 if the target user ID to delete does not exist');
-    it.todo('should return 400 for an invalid user ID format for deletion');
-    it.todo('should (optionally) prevent an admin from deleting themselves via this route, or handle it gracefully');
+      // Create a user to be deleted in tests
+      userToDelete = await createUserViaModel({
+        username: 'user_to_delete_int',
+        email: 'user_to_delete_int@example.com',
+        password: 'PasswordToDelete1!',
+      }, 'user');
+    });
+
+    it('should allow an admin to delete another user', async () => {
+      const response = await request(httpServer)
+        .delete(`${baseAdminDeleteUrl}/${(userToDelete._id as Types.ObjectId).toString()}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(response.status).toBe(200);
+      // Optionally, check response body if the endpoint returns one (e.g., { message: 'User deleted' })
+      // For example: expect(response.body.message).toEqual('User deleted successfully');
+
+      // Verify the user is actually deleted from the database
+      const deletedUserInDb = await userModel.findById(userToDelete._id);
+      expect(deletedUserInDb).toBeNull();
+    });
+
+    it('should return 403 if a non-admin user tries to delete a user', async () => {
+      const response = await request(httpServer)
+        .delete(`${baseAdminDeleteUrl}/${(userToDelete._id as Types.ObjectId).toString()}`)
+        .set('Authorization', `Bearer ${regularUserToken}`); // Use regular user token
+
+      expect(response.status).toBe(403);
+
+      // Verify the user is NOT deleted from the database
+      const userStillInDb = await userModel.findById(userToDelete._id);
+      expect(userStillInDb).not.toBeNull();
+    });
+
+    it('should return 401 if no authentication token is provided', async () => {
+      const response = await request(httpServer)
+        .delete(`${baseAdminDeleteUrl}/${(userToDelete._id as Types.ObjectId).toString()}`);
+
+      expect(response.status).toBe(401);
+      // Verify the user is NOT deleted
+      const userStillInDb = await userModel.findById(userToDelete._id);
+      expect(userStillInDb).not.toBeNull();
+    });
+
+    it('should return 404 if the target user ID to delete does not exist', async () => {
+      const nonExistentUserId = new Types.ObjectId().toHexString();
+      const response = await request(httpServer)
+        .delete(`${baseAdminDeleteUrl}/${nonExistentUserId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(response.status).toBe(404);
+    });
+
+    it('should return 400 for an invalid user ID format for deletion', async () => {
+      const invalidUserId = 'invalid-id-format';
+      const response = await request(httpServer)
+        .delete(`${baseAdminDeleteUrl}/${invalidUserId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      expect(response.status).toBe(400);
+      // Optionally check for a specific error message if your API provides one
+      // expect(response.body.message).toContain('Invalid user ID format');
+    });
+
+    it('should (optionally) prevent an admin from deleting themselves via this route, or handle it gracefully', async () => {
+      // This test depends on the desired application logic.
+      // Scenario 1: Admin cannot delete themselves.
+      const response = await request(httpServer)
+        .delete(`${baseAdminDeleteUrl}/${(adminUser._id as Types.ObjectId).toString()}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+
+      // Expect a 403 Forbidden or 400 Bad Request, or a specific error message
+      expect(response.status).toBe(400); // Or 403, depending on implementation
+      // expect(response.body.message).toEqual('Admins cannot delete themselves.');
+
+      // Verify the admin user is NOT deleted from the database
+      const adminStillInDb = await userModel.findById(adminUser._id);
+      expect(adminStillInDb).not.toBeNull();
+
+      // Scenario 2: Admin can delete themselves (less common for this type of admin endpoint)
+      // If so, the status code would be 200, and you'd verify they are deleted.
+    });
   });
 });

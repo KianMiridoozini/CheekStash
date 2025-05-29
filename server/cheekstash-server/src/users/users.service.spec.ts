@@ -222,17 +222,55 @@ describe('UsersService', () => {
     });
 
     describe('updateUserRole', () => {
-        it('should update user role', async () => {
-            userModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(userDocMock({ role: 'user', save: jest.fn().mockResolvedValue(userDocMock({ role: 'admin' })) })) });
-            const result = await service.updateUserRole('507f1f77bcf86cd799439011', 'admin');
+        // Use valid ObjectId strings for mock IDs
+        const validAdminId = '507f1f77bcf86cd799439011'; // Example valid ObjectId
+        const validTargetUserId = '507f1f77bcf86cd799439012'; // Example valid ObjectId
+        const validOtherAdminId = '507f1f77bcf86cd799439013'; // Example valid ObjectId
+
+        const adminRequester = { id: validAdminId, role: 'admin' as const };
+        // targetUserId will now be validTargetUserId for most tests
+
+        it('should update user role when called by an admin for another user', async () => {
+            userModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(userDocMock({ _id: validTargetUserId, role: 'user', save: jest.fn().mockResolvedValue(userDocMock({ _id: validTargetUserId, role: 'admin' })) })) });
+            const result = await service.updateUserRole(validTargetUserId, 'admin', adminRequester);
             expect(result.role).toBe('admin');
+            expect(userModel.findById).toHaveBeenCalledWith(validTargetUserId);
         });
-        it('should throw if already has role', async () => {
-            userModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(userDocMock({ role: 'admin' })) });
-            await expect(service.updateUserRole('507f1f77bcf86cd799439011', 'admin')).rejects.toThrow(BadRequestException);
+
+        it('should allow an admin to change another admin\'s role', async () => {
+            userModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(userDocMock({ _id: validOtherAdminId, role: 'admin', save: jest.fn().mockResolvedValue(userDocMock({ _id: validOtherAdminId, role: 'user' })) })) });
+            const result = await service.updateUserRole(validOtherAdminId, 'user', adminRequester);
+            expect(result.role).toBe('user');
         });
-        it('should throw for invalid user id', async () => {
-            await expect(service.updateUserRole('badid', 'admin')).rejects.toThrow(BadRequestException);
+
+        it('should throw BadRequestException if an admin tries to change their own role', async () => {
+            // adminRequester.id (validAdminId) is a valid ObjectId, so the service method will proceed past the ID format check.
+            await expect(service.updateUserRole(adminRequester.id, 'user', adminRequester)).rejects.toThrow(BadRequestException);
+            await expect(service.updateUserRole(adminRequester.id, 'user', adminRequester))
+                .rejects
+                .toThrow('Admins cannot change their own role using this endpoint.');
+            expect(userModel.findById).not.toHaveBeenCalled(); 
+        });
+
+        it('should throw BadRequestException if user already has the target role', async () => {
+            userModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(userDocMock({ _id: validTargetUserId, role: 'admin' })) });
+            await expect(service.updateUserRole(validTargetUserId, 'admin', adminRequester)).rejects.toThrow(BadRequestException);
+            await expect(service.updateUserRole(validTargetUserId, 'admin', adminRequester))
+                .rejects
+                .toThrow("User already has the role 'admin'.");
+        });
+
+        it('should throw BadRequestException for invalid target user ID format', async () => {
+            // This test correctly uses an invalid ID format
+            await expect(service.updateUserRole('invalidUserIdFormat', 'admin', adminRequester)).rejects.toThrow(BadRequestException);
+            await expect(service.updateUserRole('invalidUserIdFormat', 'admin', adminRequester))
+                .rejects
+                .toThrow('Invalid target user ID format.');
+        });
+
+        it('should throw NotFoundException if target user is not found', async () => {
+            userModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(null) });
+            await expect(service.updateUserRole(validTargetUserId, 'admin', adminRequester)).rejects.toThrow('User not found');
         });
     });
 });

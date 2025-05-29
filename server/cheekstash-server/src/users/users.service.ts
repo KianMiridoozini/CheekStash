@@ -364,11 +364,17 @@ export class UsersService {
   async updateUserRole(
   targetUserId: string,
   newRole: 'user' | 'admin',
-  // Requester details are implicitly handled by the RolesGuard in the controller
+  requester: { id: string; role: string }, // Added requester
 ): Promise<Omit<UserDocument, 'passwordHash'>> {
   if (!Types.ObjectId.isValid(targetUserId)) {
     throw new BadRequestException('Invalid target user ID format.');
   }
+
+  // Prevent admin from changing their own role
+  if (requester.id === targetUserId) {
+    throw new BadRequestException('Admins cannot change their own role using this endpoint.');
+  }
+
   const user = await this.userModel.findById(targetUserId).exec();
   assertUserFound(user); // Your existing utility to throw NotFoundException if null
 
@@ -376,7 +382,7 @@ export class UsersService {
     // Optional: throw BadRequest or simply return user if role is already set
     // console.log(`User ${targetUserId} already has role ${newRole}.`);
     // return this._toUserObject(user);
-    throw new BadRequestException(`User already has the role '${newRole}'.`);
+    throw new BadRequestException(`User already has the role \'${newRole}\'.`);
   }
 
   user.role = newRole;

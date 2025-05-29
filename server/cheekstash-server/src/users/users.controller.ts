@@ -211,9 +211,12 @@ export class UsersController {
   async adminUpdateUserRole(
     @Param('userIdToUpdate') userIdToUpdate: string,
     @Body() updateUserRoleDto: UpdateUserRoleDto, // Use the new DTO
-    @Req() req, // req.user for admin context if needed by service, though RolesGuard handles auth
+    @Req() req, 
   ): Promise<Omit<UserDocument, 'passwordHash'>> { // Or UserResponseDto
-    return this.usersService.updateUserRole(userIdToUpdate, updateUserRoleDto.role);
+    return this.usersService.updateUserRole(userIdToUpdate, updateUserRoleDto.role, { 
+      id: req.user.id, 
+      role: req.user.role 
+    });
   }
 
   /**
