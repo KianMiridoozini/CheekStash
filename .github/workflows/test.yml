@@ -47,9 +47,9 @@ jobs:
         run: npm install
         working-directory: server/cheekstash-server 
 
-      # - name: Run unit tests
-      #   run: npm run test
-      #   working-directory: server/cheekstash-server
+      - name: Run unit tests
+        run: npm run test -- --runInBand
+        working-directory: server/cheekstash-server
 
       - name: Run integration tests
         run: npm run test:int

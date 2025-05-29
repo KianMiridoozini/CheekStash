@@ -1,198 +1,146 @@
-// // src/cheeks/cheeks.controller.spec.ts
-// import { Test, TestingModule } from '@nestjs/testing';
-// import { Types } from 'mongoose';
-// import { CheeksController } from './cheeks.controller';
-// import { CheeksService } from './cheeks.service';
-// import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-// import { CheeksDto } from './dto/cheeks.dto';
-// import { UpdateCheeksDto } from './dto/update-cheeks.dto';
-// import { InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { CheeksController } from './cheeks.controller';
+import { CheeksService } from './cheeks.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/optional-jwt-auth.guard';
+import { CheekVisibilityGuard } from '../common/guards/cheek-visibility.guard';
+import { BadRequestException } from '@nestjs/common';
 
-// // Mock CheeksService
-// const mockCheeksService = {
-//   createCheeks: jest.fn(),
-//   getCheeks: jest.fn(),
-//   getCheeksById: jest.fn(),
-//   updateCheeks: jest.fn(),
-//   deleteCheeks: jest.fn(),
-// };
+describe('CheeksController', () => {
+    let controller: CheeksController;
+    let cheeksService: any;
 
-// // Mock Request object
-// const mockRequest = (userPayload: any) => ({
-//   user: userPayload,
-// });
+    const mockCheeksService = {
+        createCheeks: jest.fn(),
+        getCheeksPaginated: jest.fn(),
+        getCheekSuggestions: jest.fn(),
+        getCheeksByUserId: jest.fn(),
+        findCheekByUsernameAndSlug: jest.fn(),
+        getCheeksById: jest.fn(),
+        updateCheeks: jest.fn(),
+        updateCheekVisibility: jest.fn(),
+        deleteCheeks: jest.fn(),
+    };
 
-// describe('CheeksController', () => {
-//   let controller: CheeksController;
-//   let service: CheeksService;
+    beforeEach(async () => {
+        const module: TestingModule = await Test.createTestingModule({
+            controllers: [CheeksController],
+            providers: [
+                { provide: CheeksService, useValue: mockCheeksService },
+            ],
+        })
+            .overrideGuard(JwtAuthGuard).useValue({ canActivate: () => true })
+            .overrideGuard(OptionalJwtAuthGuard).useValue({ canActivate: () => true })
+            .overrideGuard(CheekVisibilityGuard).useValue({ canActivate: () => true })
+            .compile();
 
-//   beforeEach(async () => {
-//     jest.clearAllMocks(); // Clear first
+        controller = module.get<CheeksController>(CheeksController);
+        cheeksService = module.get<CheeksService>(CheeksService);
+        jest.clearAllMocks();
+    });
 
-//     const module: TestingModule = await Test.createTestingModule({
-//       controllers: [CheeksController],
-//       providers: [
-//         {
-//           provide: CheeksService,
-//           useValue: mockCheeksService, // Provide the mock service
-//         },
-//       ],
-//     })
-//     .overrideGuard(JwtAuthGuard) // Mock the guard for all tests in this suite
-//     .useValue({ canActivate: jest.fn(() => true) }) // Allow access
-//     .compile();
+    describe('create', () => {
+        it('should call cheeksService.createCheeks with correct params', async () => {
+            const dto = {
+                title: 'T',
+                categoryId: '507f1f77bcf86cd799439011',
+                isPublic: true,
+                links: [],
+                tagNames: [],
+            };
+            const req = { user: { id: 'user1' } };
+            cheeksService.createCheeks.mockResolvedValue({ id: '1', ...dto });
+            const result = await controller.create(dto, req);
+            expect(cheeksService.createCheeks).toHaveBeenCalledWith(dto, 'user1');
+            expect(result).toEqual({ id: '1', ...dto });
+        });
+    });
 
-//     controller = module.get<CheeksController>(CheeksController);
-//     service = module.get<CheeksService>(CheeksService);
-//   });
+    describe('findAll', () => {
+        it('should call cheeksService.getCheeksPaginated', async () => {
+            const query = { page: 1 };
+            const req = { user: { id: 'user1' } };
+            cheeksService.getCheeksPaginated.mockResolvedValue(['cheek1']);
+            const result = await controller.findAll(query, req);
+            expect(cheeksService.getCheeksPaginated).toHaveBeenCalledWith(query, 'user1');
+            expect(result).toEqual(['cheek1']);
+        });
+    });
 
-//   it('should be defined', () => {
-//     expect(controller).toBeDefined(); // This should pass now
-//   });
+    describe('getSuggestions', () => {
+        it('should call cheeksService.getCheekSuggestions', async () => {
+            const query = { searchKeyword: 'foo' };
+            const req = { user: { id: 'user1' } };
+            cheeksService.getCheekSuggestions.mockResolvedValue(['suggestion']);
+            const result = await controller.getSuggestions(query, req);
+            expect(cheeksService.getCheekSuggestions).toHaveBeenCalledWith(query, 'user1');
+            expect(result).toEqual(['suggestion']);
+        });
+    });
 
-//   // --- Test create ---
-//   describe('create', () => {
-//     const categoryId = new Types.ObjectId().toHexString();
-//     const cheeksDto: CheeksDto = {
-//       title: 'New Cheek',
-//       description: 'd',
-//       categoryId: categoryId,
-//       links: [
-//         { title: 't', url: 'u', description: 'd', order: 0 },
-//         { title: 't2', url: 'u2', description: 'd2', order: 1 },
-//       ],
-//       tagNames: ['test-tag', 'another-tag'], // Changed from tagIds to tagNames
-//       isPublic: false,
-//     };
-//     const userPayload = { id: new Types.ObjectId().toHexString(), username: 'testuser' };
-//     const req = mockRequest(userPayload);
-//     const createdCheek = { ...cheeksDto, _id: new Types.ObjectId(), owner: userPayload.id };
+    describe('findCheeksByUserId', () => {
+        it('should call cheeksService.getCheeksByUserId', async () => {
+            const req = { user: { id: 'user1' } };
+            cheeksService.getCheeksByUserId.mockResolvedValue(['cheek']);
+            const result = await controller.findCheeksByUserId('user2', req);
+            expect(cheeksService.getCheeksByUserId).toHaveBeenCalledWith('user2', 'user1');
+            expect(result).toEqual(['cheek']);
+        });
+    });
 
-//     it('should call service.createCheeks with dto and user id', async () => {
-//       // Arrange
-//       mockCheeksService.createCheeks.mockResolvedValueOnce(createdCheek);
+    describe('findByUsernameAndSlug', () => {
+        it('should throw BadRequestException if username or slug missing', async () => {
+            await expect(controller.findByUsernameAndSlug('', 'slug', { user: { id: 'u' } })).rejects.toThrow(BadRequestException);
+            await expect(controller.findByUsernameAndSlug('user', '', { user: { id: 'u' } })).rejects.toThrow(BadRequestException);
+        });
+        it('should call cheeksService.findCheekByUsernameAndSlug', async () => {
+            cheeksService.findCheekByUsernameAndSlug.mockResolvedValue('cheek');
+            const req = { user: { id: 'user1' } };
+            const result = await controller.findByUsernameAndSlug('user', 'slug', req);
+            expect(cheeksService.findCheekByUsernameAndSlug).toHaveBeenCalledWith('user', 'slug', 'user1');
+            expect(result).toBe('cheek');
+        });
+    });
 
-//       // Act
-//       const result = await controller.create(cheeksDto, req);
+    describe('findOne', () => {
+        it('should call cheeksService.getCheeksById', async () => {
+            cheeksService.getCheeksById.mockResolvedValue('cheek');
+            const req = { user: { id: 'user1' } };
+            const result = await controller.findOne('id1', req);
+            expect(cheeksService.getCheeksById).toHaveBeenCalledWith('id1', 'user1');
+            expect(result).toBe('cheek');
+        });
+    });
 
-//       // Assert
-//       expect(service.createCheeks).toHaveBeenCalledWith(cheeksDto, userPayload.id);
-//       expect(result).toEqual(createdCheek);
-//     });
+    describe('update', () => {
+        it('should call cheeksService.updateCheeks', async () => {
+            cheeksService.updateCheeks.mockResolvedValue('updated');
+            const req = { user: { id: 'user1' } };
+            const dto = { title: 'new' };
+            const result = await controller.update('id1', dto, req);
+            expect(cheeksService.updateCheeks).toHaveBeenCalledWith('id1', dto, 'user1');
+            expect(result).toBe('updated');
+        });
+    });
 
-//     it('should propagate errors from the service when creation fails', async () => {
-//       const error = new InternalServerErrorException('Creation failed');
-//       mockCheeksService.createCheeks.mockRejectedValueOnce(error);
+    describe('updateVisibility', () => {
+        it('should call cheeksService.updateCheekVisibility', async () => {
+            cheeksService.updateCheekVisibility.mockResolvedValue('vis-updated');
+            const req = { user: { id: 'user1' } };
+            const dto = { isPublic: false };
+            const result = await controller.updateVisibility('id1', dto, req);
+            expect(cheeksService.updateCheekVisibility).toHaveBeenCalledWith('id1', dto, 'user1');
+            expect(result).toBe('vis-updated');
+        });
+    });
 
-//       await expect(controller.create(cheeksDto, req)).rejects.toThrow(InternalServerErrorException);
-//       expect(service.createCheeks).toHaveBeenCalledWith(cheeksDto, userPayload.id);
-//     });
-//   });
-
-//   // --- Test findAll ---
-//   describe('findAll', () => {
-//     it('should call service.getCheeks', async () => {
-//       // Arrange
-//       const expectedCheeks = [{ name: 'Cheek 1' }, { name: 'Cheek 2' }];
-//       mockCheeksService.getCheeks.mockResolvedValueOnce(expectedCheeks);
-
-//       // Act
-//       const result = await controller.findAll();
-
-//       // Assert
-//       expect(service.getCheeks).toHaveBeenCalled();
-//       expect(result).toEqual(expectedCheeks);
-//     });
-
-//     it('should propagate errors from the service when finding all fails', async () => {
-//       const error = new InternalServerErrorException('Failed to get cheeks');
-//       mockCheeksService.getCheeks.mockRejectedValueOnce(error);
-
-//       await expect(controller.findAll()).rejects.toThrow(InternalServerErrorException);
-//       expect(service.getCheeks).toHaveBeenCalled();
-//     });
-//   });
-
-//   // --- Test findOne ---
-//   describe('findOne', () => {
-//     const cheekId = new Types.ObjectId().toHexString();
-//     const expectedCheek = { _id: cheekId, name: 'Found Cheek' };
-
-//     it('should call service.getCheeksById with the id param', async () => {
-//       // Arrange
-//       mockCheeksService.getCheeksById.mockResolvedValueOnce(expectedCheek);
-
-//       // Act
-//       const result = await controller.findOne(cheekId);
-
-//       // Assert
-//       expect(service.getCheeksById).toHaveBeenCalledWith(cheekId);
-//       expect(result).toEqual(expectedCheek);
-//     });
-
-//     it('should propagate NotFoundException from the service if cheek is not found', async () => {
-//       const error = new NotFoundException('Cheek not found');
-//       mockCheeksService.getCheeksById.mockRejectedValueOnce(error);
-
-//       await expect(controller.findOne(cheekId)).rejects.toThrow(NotFoundException);
-//       expect(service.getCheeksById).toHaveBeenCalledWith(cheekId);
-//     });
-//   });
-
-//   // --- Test update ---
-//   describe('update', () => {
-//     const cheekId = new Types.ObjectId().toHexString();
-//     const updateDto: UpdateCheeksDto = { description: 'Updated' };
-//     const userPayload = { id: new Types.ObjectId().toHexString(), username: 'updater' };
-//     const req = mockRequest(userPayload);
-//     const updatedCheek = { _id: cheekId, name: 'Cheek', description: 'Updated', owner: userPayload.id };
-
-//     it('should call service.updateCheeks with id, dto, and user id', async () => {
-//       // Arrange
-//       mockCheeksService.updateCheeks.mockResolvedValueOnce(updatedCheek);
-
-//       // Act
-//       const result = await controller.update(cheekId, updateDto, req);
-
-//       // Assert
-//       expect(service.updateCheeks).toHaveBeenCalledWith(cheekId, updateDto, userPayload.id);
-//       expect(result).toEqual(updatedCheek);
-//     });
-
-//     it('should propagate errors from the service when update fails', async () => {
-//       const error = new InternalServerErrorException('Update failed');
-//       mockCheeksService.updateCheeks.mockRejectedValueOnce(error);
-
-//       await expect(controller.update(cheekId, updateDto, req)).rejects.toThrow(InternalServerErrorException);
-//       expect(service.updateCheeks).toHaveBeenCalledWith(cheekId, updateDto, userPayload.id);
-//     });
-//   });
-
-//   // --- Test remove ---
-//   describe('remove', () => {
-//     const cheekId = new Types.ObjectId().toHexString();
-//     const userPayload = { id: new Types.ObjectId().toHexString(), username: 'deleter' };
-//     const req = mockRequest(userPayload);
-//     const deleteResult = { message: 'Cheeks deleted successfully' };
-
-//     it('should call service.deleteCheeks with id and user id', async () => {
-//         // Arrange
-//         mockCheeksService.deleteCheeks.mockResolvedValueOnce(deleteResult);
-
-//         // Act
-//         const result = await controller.remove(cheekId, req);
-
-//         // Assert
-//         expect(service.deleteCheeks).toHaveBeenCalledWith(cheekId, userPayload.id);
-//         expect(result).toEqual(deleteResult);
-//     });
-
-//     it('should propagate errors from the service when deletion fails', async () => {
-//       const error = new InternalServerErrorException('Deletion failed');
-//       mockCheeksService.deleteCheeks.mockRejectedValueOnce(error);
-
-//       await expect(controller.remove(cheekId, req)).rejects.toThrow(InternalServerErrorException);
-//       expect(service.deleteCheeks).toHaveBeenCalledWith(cheekId, userPayload.id);
-//     });
-//   });
-// });
+    describe('remove', () => {
+        it('should call cheeksService.deleteCheeks', async () => {
+            cheeksService.deleteCheeks.mockResolvedValue('deleted');
+            const req = { user: { id: 'user1' } };
+            const result = await controller.remove('id1', req);
+            expect(cheeksService.deleteCheeks).toHaveBeenCalledWith('id1', 'user1');
+            expect(result).toBe('deleted');
+        });
+    });
+});
