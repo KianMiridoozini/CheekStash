@@ -37,12 +37,25 @@ export class ReviewsService {
       cheek = await this.cheeksService.getCheeksById(cheekId);
     } catch (error) {
       if (error instanceof NotFoundException) {
-        throw new NotFoundException(`Cheek with ID \"${cheekId}\" not found for review creation.`);
+        throw new NotFoundException(`Cheek with ID "${cheekId}" not found for review creation.`);
       }
       throw error;
     }
 
-    if (cheek.owner.toString() === userId) {
+    // DEBUG LOG: Print types and values before comparison
+    // console.warn('[DEBUG] cheek.owner:', cheek.owner, 'typeof:', typeof cheek.owner, 'userId:', userId, 'typeof:', typeof userId);
+
+    // Robustly extract owner id as string
+    let ownerIdString: string | undefined;
+    if (cheek.owner && typeof cheek.owner === 'object' && '_id' in cheek.owner && cheek.owner._id) {
+      ownerIdString = cheek.owner._id.toString();
+    } else if (typeof cheek.owner === 'string' && Types.ObjectId.isValid(cheek.owner)) {
+      ownerIdString = cheek.owner;
+    } else if (cheek.owner && typeof cheek.owner === 'object' && typeof cheek.owner.toString === 'function') {
+      ownerIdString = cheek.owner.toString();
+    }
+
+    if (ownerIdString === userId) {
       throw new ForbiddenException('You cannot review your own cheek.');
     }
     return cheek;
