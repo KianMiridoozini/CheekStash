@@ -91,6 +91,7 @@ export class ReviewsService {
         username, // Storing denormalized username
       });
       const savedReviewDoc = await newReview.save();
+      await this.cheeksService.recalculateAndUpdateCheekStats(createReviewDto.cheekId);
 
       const populatedReview = await this.reviewModel
         .findById(savedReviewDoc._id)
@@ -326,6 +327,7 @@ export class ReviewsService {
     // Apply updates
     Object.assign(reviewToUpdate, updateReviewDto);
     const updatedReviewDoc = await reviewToUpdate.save();
+    await this.cheeksService.recalculateAndUpdateCheekStats(reviewToUpdate.cheekId);
 
     // Populate and transform
     const populatedReview = await this.reviewModel
@@ -350,6 +352,20 @@ export class ReviewsService {
   async deleteReview(reviewId: string, userId: string): Promise<{ message: string }> {
     this._validateObjectId(reviewId, 'Review');
 
+    // Find the review to get the cheekId before deletion
+    const reviewToDelete = await this.reviewModel.findOne({
+      _id: new Types.ObjectId(reviewId),
+      userId: new Types.ObjectId(userId)
+    });
+
+    if (!reviewToDelete) {
+      throw new NotFoundException(
+        `Review with ID \"${reviewId}\" not found or you do not have permission to delete it.`,
+      );
+    }
+
+    const cheekId = reviewToDelete.cheekId;
+
     const deleteResult = await this.reviewModel.deleteOne(
       { _id: new Types.ObjectId(reviewId), userId: new Types.ObjectId(userId) }
     ).exec();
@@ -359,6 +375,7 @@ export class ReviewsService {
         `Review with ID \"${reviewId}\" not found or you do not have permission to delete it.`,
       );
     }
+    await this.cheeksService.recalculateAndUpdateCheekStats(cheekId);
 
     return { message: 'Review deleted successfully' };
   }

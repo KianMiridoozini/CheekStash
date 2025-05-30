@@ -57,6 +57,7 @@ export interface CheekQueryParams {
     tagNames?: string[];
     page?: number;
     limit?: number; 
+    sortBy?: 'recent' | 'oldest' | 'rating' | 'reviewCount' | 'alpha' | 'alphaDesc';
 }
 
 export interface PaginatedCheeksResponse {

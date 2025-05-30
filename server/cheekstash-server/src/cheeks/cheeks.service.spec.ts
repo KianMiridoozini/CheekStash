@@ -269,4 +269,143 @@ describe('CheeksService', () => {
             await expect(service.deleteCheeks(id, ownerId)).rejects.toThrow(NotFoundException);
         });
     });
+
+    describe('getCheeksPaginated', () => {
+        beforeEach(() => {
+            CheeksModel.find.mockReset();
+            CheeksModel.countDocuments.mockReset();
+        });
+        it('should call find and countDocuments with correct query and sort (default)', async () => {
+            CheeksModel.find.mockReturnValue({
+                select: jest.fn().mockReturnThis(),
+                populate: jest.fn().mockReturnThis(),
+                sort: jest.fn().mockReturnThis(),
+                skip: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockReturnThis(),
+                lean: jest.fn().mockReturnThis(),
+                exec: jest.fn().mockResolvedValue([{ _id: 'c1', title: 'A' }]),
+            });
+            CheeksModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(1) });
+            const result = await service.getCheeksPaginated({});
+            expect(result.cheeks[0]._id).toBe('c1');
+            expect(result.totalItems).toBe(1);
+            expect(CheeksModel.find).toHaveBeenCalled();
+            expect(CheeksModel.countDocuments).toHaveBeenCalled();
+        });
+        it('should support sortBy: oldest', async () => {
+            const sortSpy = jest.fn().mockReturnThis();
+            CheeksModel.find.mockReturnValue({
+                select: jest.fn().mockReturnThis(),
+                populate: jest.fn().mockReturnThis(),
+                sort: sortSpy,
+                skip: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockReturnThis(),
+                lean: jest.fn().mockReturnThis(),
+                exec: jest.fn().mockResolvedValue([{ _id: 'c2', title: 'B' }]),
+            });
+            CheeksModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(1) });
+            await service.getCheeksPaginated({ sortBy: 'oldest' });
+            expect(sortSpy).toHaveBeenCalledWith({ createdAt: 1 });
+        });
+        it('should support sortBy: rating', async () => {
+            const sortSpy = jest.fn().mockReturnThis();
+            CheeksModel.find.mockReturnValue({
+                select: jest.fn().mockReturnThis(),
+                populate: jest.fn().mockReturnThis(),
+                sort: sortSpy,
+                skip: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockReturnThis(),
+                lean: jest.fn().mockReturnThis(),
+                exec: jest.fn().mockResolvedValue([{ _id: 'c3', title: 'C' }]),
+            });
+            CheeksModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(1) });
+            await service.getCheeksPaginated({ sortBy: 'rating' });
+            expect(sortSpy).toHaveBeenCalledWith({ averageRating: -1, createdAt: -1 });
+        });
+        it('should support sortBy: reviewCount', async () => {
+            const sortSpy = jest.fn().mockReturnThis();
+            CheeksModel.find.mockReturnValue({
+                select: jest.fn().mockReturnThis(),
+                populate: jest.fn().mockReturnThis(),
+                sort: sortSpy,
+                skip: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockReturnThis(),
+                lean: jest.fn().mockReturnThis(),
+                exec: jest.fn().mockResolvedValue([{ _id: 'c4', title: 'D' }]),
+            });
+            CheeksModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(1) });
+            await service.getCheeksPaginated({ sortBy: 'reviewCount' });
+            expect(sortSpy).toHaveBeenCalledWith({ reviewCount: -1, createdAt: -1 });
+        });
+        it('should support sortBy: alpha', async () => {
+            const sortSpy = jest.fn().mockReturnThis();
+            CheeksModel.find.mockReturnValue({
+                select: jest.fn().mockReturnThis(),
+                populate: jest.fn().mockReturnThis(),
+                sort: sortSpy,
+                skip: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockReturnThis(),
+                lean: jest.fn().mockReturnThis(),
+                exec: jest.fn().mockResolvedValue([{ _id: 'c5', title: 'E' }]),
+            });
+            CheeksModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(1) });
+            await service.getCheeksPaginated({ sortBy: 'alpha' });
+            expect(sortSpy).toHaveBeenCalledWith({ title: 1, createdAt: -1 });
+        });
+        it('should support sortBy: alphaDesc', async () => {
+            const sortSpy = jest.fn().mockReturnThis();
+            CheeksModel.find.mockReturnValue({
+                select: jest.fn().mockReturnThis(),
+                populate: jest.fn().mockReturnThis(),
+                sort: sortSpy,
+                skip: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockReturnThis(),
+                lean: jest.fn().mockReturnThis(),
+                exec: jest.fn().mockResolvedValue([{ _id: 'c6', title: 'F' }]),
+            });
+            CheeksModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(1) });
+            await service.getCheeksPaginated({ sortBy: 'alphaDesc' });
+            expect(sortSpy).toHaveBeenCalledWith({ title: -1, createdAt: -1 });
+        });
+        it('should support pagination', async () => {
+            const skipSpy = jest.fn().mockReturnThis();
+            const limitSpy = jest.fn().mockReturnThis();
+            CheeksModel.find.mockReturnValue({
+                select: jest.fn().mockReturnThis(),
+                populate: jest.fn().mockReturnThis(),
+                sort: jest.fn().mockReturnThis(),
+                skip: skipSpy,
+                limit: limitSpy,
+                lean: jest.fn().mockReturnThis(),
+                exec: jest.fn().mockResolvedValue([{ _id: 'c7', title: 'G' }]),
+            });
+            CheeksModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(1) });
+            await service.getCheeksPaginated({ page: 2, limit: 5 });
+            expect(skipSpy).toHaveBeenCalledWith(5); // (page-1)*limit
+            expect(limitSpy).toHaveBeenCalledWith(5);
+        });
+        it('should support filtering by categoryIds and tagIds', async () => {
+            const findSpy = jest.fn().mockReturnThis();
+            CheeksModel.find.mockImplementation((query) => {
+                findSpy(query);
+                return {
+                    select: jest.fn().mockReturnThis(),
+                    populate: jest.fn().mockReturnThis(),
+                    sort: jest.fn().mockReturnThis(),
+                    skip: jest.fn().mockReturnThis(),
+                    limit: jest.fn().mockReturnThis(),
+                    lean: jest.fn().mockReturnThis(),
+                    exec: jest.fn().mockResolvedValue([{ _id: 'c8', title: 'H' }]),
+                };
+            });
+            CheeksModel.countDocuments.mockReturnValue({ exec: jest.fn().mockResolvedValue(1) });
+            const categoryId = '507f1f77bcf86cd799439011';
+            const tagId = '507f1f77bcf86cd799439012';
+            await service.getCheeksPaginated({ categoryIds: [categoryId], tagIds: [tagId] });
+            expect(findSpy).toHaveBeenCalledWith(expect.objectContaining({
+                categoryId: { $in: [expect.any(Object)] },
+                tagIds: { $in: [expect.any(Object)] },
+            }));
+        });
+    });
 });

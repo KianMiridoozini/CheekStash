@@ -29,6 +29,9 @@ export class CheeksService {
     if (params.limit) {
       httpParams = httpParams.set('limit', params.limit.toString());
     }
+    if (params.sortBy) {
+      httpParams = httpParams.set('sortBy', params.sortBy);
+    }
 
     return this.http.get<PaginatedCheeksResponse>(this.apiUrl, { params: httpParams });
   }

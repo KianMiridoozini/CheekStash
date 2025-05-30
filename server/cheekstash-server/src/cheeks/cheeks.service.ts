@@ -231,6 +231,11 @@ export class CheeksService {
 
     try {
       let savedCheek = await newCheeks.save();
+      if (tagIds && tagIds.length > 0) {
+        for (const tagId of tagIds) {
+          await this.tagsService.updateTagUsageCount(tagId.toString(), 1);
+        }
+      }
       savedCheek = await savedCheek.populate(this.cheekPopulationPaths);
       return savedCheek;
     } catch (error: any) {
@@ -245,9 +250,31 @@ export class CheeksService {
 
   // Renamed from getCheeks to getCheeksPaginated
   async getCheeksPaginated(queryDto?: QueryCheeksDto, requestingUserId?: string): Promise<{ cheeks: CheeksDocument[], totalItems: number }> {
-    const { searchKeyword, categoryIds, tagIds, page = 1, limit = 10 } = queryDto || {};
-    // this.logger.debug(`getCheeksPaginated - queryDto: ${JSON.stringify(queryDto)}`); // Log DTO
+    const { page = 1, limit = 10 } = queryDto || {};
+    const query = this._buildCheeksQuery(queryDto, requestingUserId);
+    const sortOptions = this._buildCheeksSortOptions(queryDto?.sortBy);
+    const skip = (page - 1) * limit;
 
+    const [cheeksResults, totalItems] = await Promise.all([
+      this.CheeksModel.find(query)
+        .select('-links')
+        .populate(this.cheekListPopulationPaths)
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(limit)
+        .lean()
+        .exec(),
+      this.CheeksModel.countDocuments(query).exec(),
+    ]);
+
+    return { cheeks: cheeksResults as CheeksDocument[], totalItems };
+  }
+
+  /**
+   * Build the MongoDB query for cheeks based on filters and search.
+   */
+  private _buildCheeksQuery(queryDto?: QueryCheeksDto, requestingUserId?: string): FilterQuery<CheeksDocument> {
+    const { searchKeyword, categoryIds, tagIds } = queryDto || {};
     const query: FilterQuery<CheeksDocument> = {};
     const filterConditions: FilterQuery<CheeksDocument>[] = [];
 
@@ -259,64 +286,67 @@ export class CheeksService {
       query.tagIds = { $in: tagIds.map(id => new Types.ObjectId(id)) };
     }
 
-    // Visibility conditions
-    const visibilityQueryPart: FilterQuery<CheeksDocument> = {};
-    if (requestingUserId) {
-      visibilityQueryPart.$or = [
-        { isPublic: true },
-        { owner: new Types.ObjectId(requestingUserId) },
-      ];
-    } else {
-      visibilityQueryPart.isPublic = true;
-    }
-    filterConditions.push(visibilityQueryPart);
+    filterConditions.push(this._buildVisibilityQueryPart(requestingUserId));
 
-    // Search keyword conditions using regex
-    if (searchKeyword && searchKeyword.trim().length > 0) { // Ensure searchKeyword is not empty
-      const regex = new RegExp(searchKeyword.trim().replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'i'); // 'i' for case-insensitive
-      filterConditions.push({
-        $or: [
-          { title: { $regex: regex } },
-          { description: { $regex: regex } },
-        ],
-      });
+    if (searchKeyword && searchKeyword.trim().length > 0) {
+      filterConditions.push(this._buildSearchQueryPart(searchKeyword));
     }
 
     if (filterConditions.length > 0) {
       query.$and = filterConditions;
     }
+    return query;
+  }
 
-    // this.logger.debug(`getCheeksPaginated - MongoDB query: ${JSON.stringify(query)}`); // Log constructed query
-
-    const skip = (page - 1) * limit;
-
-    sortOptionsCreatedAt
-
-    const [cheeksResults, totalItems] = await Promise.all([
-      this.CheeksModel.find(query)
-        .select('-links')
-        .populate(this.cheekListPopulationPaths)
-        .sort(sortOptionsCreatedAt)
-        .skip(skip)
-        .limit(limit)
-        .lean()
-        .exec(),
-      this.CheeksModel.countDocuments(query).exec(),
-    ]);
-
-    const cheekIds = cheeksResults.map(c => c._id as Types.ObjectId); // _id is available on lean objects
-    const reviewStatsMap = await this._getReviewStatsForCheeks(cheekIds);
-
-    const cheeksWithStats = cheeksResults.map(cheek => { // cheek is now a plain object
-      const stats = reviewStatsMap.get((cheek._id as Types.ObjectId).toString());
+  /**
+   * Build the visibility part of the query.
+   */
+  private _buildVisibilityQueryPart(requestingUserId?: string): FilterQuery<CheeksDocument> {
+    if (requestingUserId) {
       return {
-        ...cheek, // Spread the plain cheek object
-        averageRating: stats?.averageRating ?? 0,
-        reviewCount: stats?.reviewCount ?? 0,
-      } as unknown as CheeksDocument; // Future Change:Ideally use a DTO for response
-    });
+        $or: [
+          { isPublic: true },
+          { owner: new Types.ObjectId(requestingUserId) },
+        ],
+      };
+    } else {
+      return { isPublic: true };
+    }
+  }
 
-    return { cheeks: cheeksWithStats, totalItems };
+  /**
+   * Build the search part of the query.
+   */
+  private _buildSearchQueryPart(searchKeyword: string): FilterQuery<CheeksDocument> {
+    const regex = new RegExp(searchKeyword.trim().replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&'), 'i');
+    return {
+      $or: [
+        { title: { $regex: regex } },
+        { description: { $regex: regex } },
+      ],
+    };
+  }
+
+  /**
+   * Build the sort options for cheeks query.
+   */
+  private _buildCheeksSortOptions(sortBy?: string): Record<string, 1 | -1> {
+    switch (sortBy) {
+      case 'oldest':
+        return { createdAt: 1 };
+      case 'rating':
+        return { averageRating: -1, createdAt: -1 };
+      case 'reviewCount':
+        return { reviewCount: -1, createdAt: -1 };
+      case 'alpha':
+        return { title: 1, createdAt: -1 };
+      case 'alphaDesc':
+        return { title: -1, createdAt: -1 };
+      case 'recent':
+        return { createdAt: -1 };
+      default:
+        return { createdAt: -1 };
+    }
   }
 
   async getCheekSuggestions(queryDto?: QueryCheeksDto, requestingUserId?: string): Promise<CheeksDocument[]> {
@@ -561,5 +591,15 @@ export class CheeksService {
       }
     }
     return uniqueSlug;
+  }
+
+  // Recalculate and update averageRating and reviewCount for a cheek
+  async recalculateAndUpdateCheekStats(cheekId: Types.ObjectId | string): Promise<void> {
+    const id = typeof cheekId === 'string' ? new Types.ObjectId(cheekId) : cheekId;
+    const stats = await this._getReviewStatsForCheek(id);
+    await this.CheeksModel.findByIdAndUpdate(id, {
+      averageRating: stats.averageRating,
+      reviewCount: stats.reviewCount,
+    }).exec();
   }
 }

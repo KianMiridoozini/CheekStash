@@ -24,10 +24,11 @@
                 (change)="onSortChange($event)" 
                 [ngModel]="currentSortBy">
             <option value="recent">Most Recent</option>
-            <option value="rating-desc">Rating: High to Low</option>
-            <option value="rating-asc">Rating: Low to High</option>
-            <option value="alpha-asc">Alphabetical: A to Z</option>
-            <option value="alpha-desc">Alphabetical: Z to A</option>
+            <option value="oldest">Oldest</option>
+            <option value="rating">Rating: High to Low</option>
+            <option value="reviewCount">Most Reviewed</option>
+            <option value="alpha">Alphabetical: A to Z</option>
+            <option value="alphaDesc">Alphabetical: Z to A</option>
         </select>
     </div>
 
@@ -129,17 +130,17 @@
                 <!-- End Average Rating Display -->
 
                 <div class="text-xs text-base-content/60 mb-3 space-y-1">
-                    <div *ngIf="cheek.categoryId">
+                    <div *ngIf="getCategoryName(cheek); else noCategory">
                         <strong>Category:</strong>
-                        <a [routerLink]="['/cheeks']" [queryParams]="{ categoryNames: [cheek.categoryId.name] }"
+                        <a [routerLink]="['/cheeks']" [queryParams]="{ categoryNames: [getCategoryName(cheek)] }"
                            class="badge badge-outline badge-sm ml-1 link link-hover">
-                           {{ cheek.categoryId.name }}
+                           {{ getCategoryName(cheek) }}
                         </a>
                     </div>
-                    <div *ngIf="!cheek.categoryId">
+                    <ng-template #noCategory>
                         <strong>Category:</strong>
                         <span class="badge badge-outline badge-sm ml-1 text-base-content/50">N/A</span>
-                    </div>
+                    </ng-template>
                     <div>
                         <strong>User:</strong>
                         <ng-container *ngIf="isUser(cheek.owner)">
@@ -147,8 +148,7 @@
                         </ng-container>
                         <ng-container *ngIf="!isUser(cheek.owner) && cheek.owner">
                             <span class="font-medium ml-1 text-error italic">
-                                Owner ID: {{cheek.owner}}
-                                (User data not fully loaded)
+                                Owner ID: {{cheek.owner}} (User data not fully loaded)
                             </span>
                         </ng-container>
                         <ng-container *ngIf="!cheek.owner">
@@ -163,18 +163,18 @@
                             </span>
                         </div>
                     </ng-container>
-                    <div *ngIf="cheek.tagIds && cheek.tagIds.length > 0">
+                    <div *ngIf="getTagNames(cheek).length > 0; else noTags">
                         <strong>Tags:</strong>
-                        <span *ngFor="let tag of cheek.tagIds" class="badge badge-ghost badge-sm ml-1">
-                            <a [routerLink]="['/cheeks']" [queryParams]="{ tagNames: [tag.name] }" class="link link-hover">
-                                {{ tag.name }}
+                        <span *ngFor="let tagName of getTagNames(cheek)" class="badge badge-ghost badge-sm ml-1">
+                            <a [routerLink]="['/cheeks']" [queryParams]="{ tagNames: [tagName] }" class="link link-hover">
+                                {{ tagName }}
                             </a>
                         </span>
                     </div>
-                    <div *ngIf="(!cheek.tagIds || cheek.tagIds.length === 0)">
+                    <ng-template #noTags>
                         <strong>Tags:</strong>
                         <span class="badge badge-ghost badge-sm ml-1 text-base-content/50">None</span>
-                    </div>
+                    </ng-template>
                 </div>
 
                 <div class="card-actions justify-end items-center">

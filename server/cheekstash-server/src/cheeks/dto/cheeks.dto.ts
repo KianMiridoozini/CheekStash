@@ -67,4 +67,24 @@ export class CheeksDto {
   @ValidateNested({ each: true })
   @Type(() => LinkDto)
   links: LinkDto[];
+
+  @ApiProperty({
+    example: 4,
+    description: 'Average rating for this cheek, precomputed from reviews',
+    required: false,
+    default: 0,
+  })
+  @IsNumber()
+  @IsOptional()
+  averageRating?: number;
+
+  @ApiProperty({
+    example: 10,
+    description: 'Number of reviews for this cheek, precomputed',
+    required: false,
+    default: 0,
+  })
+  @IsNumber()
+  @IsOptional()
+  reviewCount?: number;
 }
