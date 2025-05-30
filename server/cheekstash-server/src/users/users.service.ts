@@ -11,12 +11,12 @@ import { Model, Types } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './schemas/user.schema';
 import { CreateUserDto } from './dto/create-user.dto';
-import { UpdateUserDto } from './dto/update-user.dto'; // This DTO is now assumed to NOT contain avatarUrl/profileImagePublicId
+import { UpdateUserDto } from './dto/update-user.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { Cheeks, CheeksDocument } from '../cheeks/schemas/cheek.schema';
 import { Review, ReviewDocument } from '../reviews/schemas/review.schema';
 import { CloudinaryService } from '../common/cloudinary.service';
-import { File } from 'multer'; // Assuming Express.Multer.File or equivalent
+import { File } from 'multer';
 import { assertUserFound } from '../common/guards/user-check.util';
 
 @Injectable()
@@ -26,88 +26,26 @@ export class UsersService {
     @InjectModel(Cheeks.name) private cheekModel: Model<CheeksDocument>,
     @InjectModel(Review.name) private reviewModel: Model<ReviewDocument>,
     private readonly cloudinaryService: CloudinaryService,
-  ) { }
+  ) {}
 
-  // --- Private Helper Methods (UNCHANGED) ---
+  // --- Public Methods: User Account Creation & Authentication ---
 
-  private _sanitizeUsername(username: string): string {
-    if (!username) return '';
-    return username
-      .trim()
-      .toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/[^a-z0-9-]/g, '');
-  }
+  async create(createUserDto: CreateUserDto): Promise<UserDocument> {
+    const { password } = createUserDto;
+    const { sanitizedUsername, normalizedEmail } = this._validateAndPrepareInitialUserData(createUserDto);
 
-  private _escapeRegex(string: string): string {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-  private async _deleteOldCloudinaryImage(publicId?: string): Promise<void> {
-    if (publicId) {
-      try {
-        await this.cloudinaryService.deleteImage(publicId);
-      } catch (error) {
-        console.error(
-          `Failed to delete old image ${publicId} from Cloudinary:`,
-          error,
-        );
-        // Consider if you need to re-throw or handle this error more explicitly
-      }
-    }
-  }
-
-  private _toUserObject(userDoc: UserDocument | null): any { // Added | null to match usage
-    if (!userDoc) {
-      return null;
-    }
-
-    // Assuming userDoc.toObject() and your schema's toJSON transform handle this correctly
-    const userObject = userDoc.toObject
-      ? userDoc.toObject({ virtuals: true, getters: true })
-      : { ...userDoc };
-    return userObject;
-  }
-
-  // --- User Account Creation & Authentication Related Methods (UNCHANGED) ---
-
-  async create(createUserDto: CreateUserDto): Promise<Omit<UserDocument, 'passwordHash'>> {
-    const { email, password } = createUserDto;
-    const sanitizedUsername = this._sanitizeUsername(createUserDto.username);
-    const normalizedEmail = email.toLowerCase().trim();
-
-    if (!sanitizedUsername) {
-      throw new BadRequestException(
-        'Username is invalid or became empty after sanitization. Please use alphanumeric characters, spaces, or hyphens.',
-      );
-    }
-
-    const existingUser = await this.userModel.findOne({
-      $or: [{ email: normalizedEmail }, { username: sanitizedUsername }],
-    });
-
-    if (existingUser) {
-      if (existingUser.email === normalizedEmail) {
-        throw new BadRequestException('Email already taken.');
-      }
-      if (existingUser.username === sanitizedUsername) {
-        throw new BadRequestException(
-          'Username already taken. Please try a different one.',
-        );
-      }
-      throw new BadRequestException('Email or username conflict.');
-    }
+    await this._ensureUserDoesNotExist(sanitizedUsername, normalizedEmail);
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const newUser = new this.userModel({
       username: sanitizedUsername,
       email: normalizedEmail,
       passwordHash: hashedPassword,
-      profile: {},
+      profile: {}, // Initialize profile object
     });
 
     const savedUser = await newUser.save();
-    return this._toUserObject(savedUser);
+    return this._toUserObject(savedUser, true)!;
   }
 
   async findByEmail(
@@ -119,7 +57,7 @@ export class UsersService {
     if (includePasswordHash) {
       query.select('+passwordHash');
     } else {
-      query.select('-passwordHash -__v'); // Keep this if _toUserObject doesn't reliably remove them
+      query.select('-passwordHash -__v');
     }
     return query.exec();
   }
@@ -128,18 +66,10 @@ export class UsersService {
     userId: string,
     changePasswordDto: ChangePasswordDto,
   ): Promise<{ message: string }> {
-    if (!Types.ObjectId.isValid(userId)) {
-      throw new BadRequestException('Invalid user ID format.');
-    }
     const { oldPassword, newPassword } = changePasswordDto;
 
-    const user = await this.userModel.findById(userId).select('+passwordHash').exec();
-    assertUserFound(user);
-
-    const isOldPasswordValid = await bcrypt.compare(oldPassword, user.passwordHash);
-    if (!isOldPasswordValid) {
-      throw new UnauthorizedException('Incorrect old password.');
-    }
+    const user = await this._findUserForPasswordChange(userId);
+    await this._validateOldPassword(oldPassword, user.passwordHash!);
 
     user.passwordHash = await bcrypt.hash(newPassword, 10);
     await user.save();
@@ -147,11 +77,11 @@ export class UsersService {
     return { message: 'Password updated successfully.' };
   }
 
-  // --- User Query Methods ---
+  // --- Public Methods: User Query ---
 
   async findAll(): Promise<Omit<UserDocument, 'passwordHash'>[]> {
     const users = await this.userModel.find().select('-passwordHash -__v').exec();
-    return users.map(user => this._toUserObject(user));
+    return users.map(user => this._toUserObject(user)!);
   }
 
   async findById(id: string): Promise<Omit<UserDocument, 'passwordHash'>> {
@@ -160,7 +90,7 @@ export class UsersService {
     }
     const user = await this.userModel.findById(id).select('-passwordHash -__v').exec();
     assertUserFound(user);
-    return this._toUserObject(user!); // user! because assertUserFound guarantees it's not null
+    return this._toUserObject(user!)!;
   }
 
   async findUserByUsername(username: string): Promise<Omit<UserDocument, 'passwordHash'> | null> {
@@ -168,14 +98,14 @@ export class UsersService {
     if (!sanitizedUsername) {
       return null;
     }
-    const user = await this.userModel
+    const userDoc = await this.userModel
       .findOne({ username: sanitizedUsername })
       .select('-passwordHash -__v')
       .exec();
-    return user ? this._toUserObject(user) : null;
+    return userDoc ? this._toUserObject(userDoc) : null;
   }
 
-  async searchByName(nameQuery: string): Promise<Omit<UserDocument, 'passwordHash'>[]> { // Changed return type
+  async searchByName(nameQuery: string): Promise<Omit<UserDocument, 'passwordHash'>[]> {
     const searchTerm = nameQuery.trim();
     if (!searchTerm) {
       return [];
@@ -196,15 +126,14 @@ export class UsersService {
       .select('-passwordHash -__v')
       .limit(20)
       .exec();
-    return users.map(user => this._toUserObject(user));
+    return users.map(user => this._toUserObject(user)!);
   }
 
-  async findByCheekCount(min: number): Promise<Omit<UserDocument, 'passwordHash'>[]> { // Changed return type
+  async findByCheekCount(min: number): Promise<Omit<UserDocument, 'passwordHash'>[]> {
     if (isNaN(min) || min < 0) {
       throw new BadRequestException('Minimum cheek count must be a non-negative number.');
     }
 
-    // This aggregate already projects out passwordHash and __v
     const usersWithCheekCount = await this.cheekModel.aggregate([
       { $group: { _id: '$owner', cheekCount: { $sum: 1 } } },
       { $match: { cheekCount: { $gte: min } } },
@@ -214,82 +143,39 @@ export class UsersService {
           localField: '_id',
           foreignField: '_id',
           as: 'userDetails',
-          pipeline: [{ $project: { passwordHash: 0, __v: 0 } }], // Ensures sensitive data is not included
+          pipeline: [{ $project: { passwordHash: 0, __v: 0 } }],
         },
       },
       { $unwind: '$userDetails' },
       { $replaceRoot: { newRoot: '$userDetails' } },
     ]);
 
-    return usersWithCheekCount.filter(user => user) as Omit<UserDocument, 'passwordHash'>[];
+    return usersWithCheekCount.filter(user => !!user) as Omit<UserDocument, 'passwordHash'>[];
   }
 
-  // --- User Profile & Account Management Methods ---
+  // --- Public Methods: User Profile & Account Management ---
 
-  /**
-   * Updates basic profile information (e.g., displayName, bio).
-   * Avatar management is handled by uploadProfileImage and deleteAvatar methods.
-   * Assumes UpdateUserDto does NOT contain avatarUrl or profileImagePublicId.
-   */
   async updateProfile(
     targetUserId: string,
-    updateUserDto: UpdateUserDto, // This DTO should only contain fields like displayName, bio
+    updateUserDto: UpdateUserDto,
     requester: { id: string; role: string },
-  ): Promise<Omit<UserDocument, 'passwordHash'>> { // Changed return type
-    if (!Types.ObjectId.isValid(targetUserId)) {
-      throw new BadRequestException('Invalid target user ID format.');
-    }
+  ): Promise<Omit<UserDocument, 'passwordHash'>> {
+    const user = await this._validateAndAuthorizeProfileUpdate(targetUserId, requester);
+    const profileChanged = await this._applyProfileDataUpdates(user, updateUserDto);
 
-    const user = await this.userModel.findById(targetUserId).exec();
-    assertUserFound(user);
-
-    if (targetUserId !== requester.id && requester.role !== 'admin') {
-      throw new ForbiddenException('You are not authorized to update this profile.');
-    }
-
-    user.profile = user.profile || {}; // Ensure profile object exists
-
-    let profileChanged = false;
-    // Update displayName if provided
-    if (updateUserDto.displayName !== undefined) {
-      const newDisplayName = updateUserDto.displayName.trim() === '' ? undefined : updateUserDto.displayName.trim();
-      if (user.profile.displayName !== newDisplayName) {
-        user.profile.displayName = newDisplayName;
-        profileChanged = true;
-      }
-    }
-
-    // Update bio if provided
-    if (updateUserDto.bio !== undefined) {
-      const newBio = updateUserDto.bio.trim() === '' ? undefined : updateUserDto.bio.trim();
-      if (user.profile.bio !== newBio) {
-        user.profile.bio = newBio;
-        profileChanged = true;
-      }
-    }
-
-    // Avatar-related logic is REMOVED from this method.
-    
     if (profileChanged) {
-      user.markModified('profile'); // Explicitly mark the 'profile' path as modified
+      user.markModified('profile');
       const updatedUser = await user.save();
-      return this._toUserObject(updatedUser);
+      return this._toUserObject(updatedUser)!;
     } else {
-      // If no actual changes were made to the profile fields,
-      // just return the current user state without saving.
-      return this._toUserObject(user); 
+      return this._toUserObject(user)!;
     }
   }
 
-  /**
-   * Uploads or replaces a user's profile image.
-   * This method remains largely the same but now works in conjunction with a separate deleteAvatar.
-   */
   async uploadProfileImage(
-    userId: string, // Restored userId parameter name
-    file: File, 
-    // requester: { id: string; role: string }, 
-  ): Promise<Omit<UserDocument, 'passwordHash'>> { 
+    userId: string,
+    file: File,
+  ): Promise<Omit<UserDocument, 'passwordHash'>> {
     if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('Invalid user ID format.');
     }
@@ -302,8 +188,253 @@ export class UsersService {
 
     user.profile = user.profile || {};
 
-    if (user.profile.profileImagePublicId) {
-      await this._deleteOldCloudinaryImage(user.profile.profileImagePublicId);
+    const { secure_url, public_id } = await this._handleCloudinaryUpload(file, user.profile.profileImagePublicId);
+
+    user.profile.avatarUrl = secure_url;
+    user.profile.profileImagePublicId = public_id;
+
+    user.markModified('profile');
+    const updatedUser = await user.save();
+    return this._toUserObject(updatedUser)!;
+  }
+
+  async deleteAvatar(
+    userId: string,
+    requester: { id: string; role: string },
+  ): Promise<Omit<UserDocument, 'passwordHash'>> {
+    if (userId !== requester.id && requester.role !== 'admin') {
+      throw new ForbiddenException(
+        'You are not authorized to delete this profile image.',
+      );
+    }
+
+    const user = await this._findUserAndValidateProfileImage(userId);
+
+    if (!user.profile?.profileImagePublicId) {
+      throw new InternalServerErrorException(
+        'Profile image public ID missing after validation.',
+      );
+    }
+
+    await this._deleteOldCloudinaryImage(user.profile.profileImagePublicId);
+    this._clearUserProfileImageDetails(user);
+
+    const updatedUser = await user.save();
+    return this._toUserObject(updatedUser)!;
+  }
+
+  async updateUserRole(
+    targetUserId: string,
+    newRole: 'user' | 'admin',
+    requester: { id: string; role: string },
+  ): Promise<Omit<UserDocument, 'passwordHash'>> {
+    if (!Types.ObjectId.isValid(targetUserId)) {
+      throw new BadRequestException('Invalid target user ID format.');
+    }
+
+    if (requester.id === targetUserId) {
+      throw new BadRequestException('Admins cannot change their own role using this endpoint.');
+    }
+
+    const user = await this.userModel.findById(targetUserId).exec();
+    assertUserFound(user);
+
+    if (user.role === newRole) {
+      throw new BadRequestException(`User already has the role '${newRole}'.`);
+    }
+
+    user.role = newRole;
+    const updatedUser = await user.save();
+    return this._toUserObject(updatedUser)!;
+  }
+
+  async deleteUser(
+    targetUserId: string,
+    confirmPassword: string, 
+    requester: { id: string; role: string },
+  ): Promise<{ message: string }> {
+    const user = await this._findUserForDeletion(targetUserId, requester);
+
+    if (targetUserId === requester.id) {
+      await this._confirmPasswordForDeletion(user, confirmPassword);
+    }
+
+    await this._deleteAssociatedUserData(user);
+    await this.userModel.findByIdAndDelete(user._id);
+
+    return {
+      message: 'User and all associated data (cheeks, reviews, avatar) have been deleted.',
+    };
+  }
+
+  // --- Private Helper Methods ---
+
+  // --- Private Helper Methods: General ---
+  private _sanitizeUsername(username: string): string {
+    if (!username) return '';
+    return username
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, '-') 
+      .replace(/[^a-z0-9-]/g, '');
+  }
+
+  private _escapeRegex(string: string): string {
+    return string.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&');
+  }
+
+  private async _deleteOldCloudinaryImage(publicId?: string): Promise<void> {
+    if (publicId) {
+      try {
+        await this.cloudinaryService.deleteImage(publicId);
+      } catch (error) {
+        console.error(
+          `Failed to delete old image ${publicId} from Cloudinary:`,
+          error,
+        );
+      }
+    }
+  }
+
+  private _toUserObject(userDoc: UserDocument, includePasswordHash: true): UserDocument;
+  private _toUserObject(userDoc: UserDocument, includePasswordHash?: false): Omit<UserDocument, 'passwordHash'>;
+  private _toUserObject(userDoc: null, includePasswordHash?: boolean): null;
+  
+  private _toUserObject(
+    userDoc: UserDocument | null,
+    includePasswordHash = false
+  ): UserDocument | Omit<UserDocument, 'passwordHash'> | null {
+    if (!userDoc) {
+      return null;
+    }
+    const userObject = userDoc.toObject
+      ? userDoc.toObject({ virtuals: true, getters: true })
+      : { ...userDoc }; 
+      
+    if (!includePasswordHash) {
+      delete userObject.passwordHash;
+    }
+    delete userObject.__v;
+    
+    return userObject as any;
+  }
+  
+  // --- Private Helper Methods: User Creation (for create) ---
+  private _validateAndPrepareInitialUserData(createUserDto: CreateUserDto): { sanitizedUsername: string; normalizedEmail: string } {
+    const { email } = createUserDto;
+    const sanitizedUsername = this._sanitizeUsername(createUserDto.username);
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (!sanitizedUsername) {
+      throw new BadRequestException(
+        'Username is invalid or became empty after sanitization. Please use alphanumeric characters, spaces, or hyphens.',
+      );
+    }
+    return { sanitizedUsername, normalizedEmail };
+  }
+
+  private async _ensureUserDoesNotExist(sanitizedUsername: string, normalizedEmail: string): Promise<void> {
+    const existingUser = await this.userModel.findOne({
+      $or: [{ email: normalizedEmail }, { username: sanitizedUsername }],
+    });
+
+    if (existingUser) {
+      if (existingUser.email === normalizedEmail) {
+        throw new BadRequestException('Email already taken.');
+      }
+      if (existingUser.username === sanitizedUsername) {
+        throw new BadRequestException(
+          'Username already taken. Please try a different one.',
+        );
+      }
+      throw new BadRequestException('Email or username conflict.');
+    }
+  }
+
+  // --- Private Helper Methods: Password Change (for changePassword) ---
+  private async _findUserForPasswordChange(userId: string): Promise<UserDocument> {
+    if (!Types.ObjectId.isValid(userId)) {
+      throw new BadRequestException('Invalid user ID format.');
+    }
+    const user = await this.userModel.findById(userId).select('+passwordHash').exec();
+    assertUserFound(user);
+    if (!user.passwordHash) {
+      throw new InternalServerErrorException('User password data is missing.');
+    }
+    return user;
+  }
+
+  private async _validateOldPassword(passwordToVerify: string, passwordHash: string): Promise<void> {
+    const isPasswordValid = await bcrypt.compare(passwordToVerify, passwordHash);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Incorrect old password.');
+    }
+  }
+  
+  // --- Private Helper Methods: Profile Update (for updateProfile) ---
+  private async _validateAndAuthorizeProfileUpdate(
+    targetUserId: string,
+    requester: { id: string; role: string },
+  ): Promise<UserDocument> {
+    if (!Types.ObjectId.isValid(targetUserId)) {
+      throw new BadRequestException('Invalid target user ID format.');
+    }
+
+    const user = await this.userModel.findById(targetUserId).exec();
+    assertUserFound(user);
+
+    if (targetUserId !== requester.id && requester.role !== 'admin') {
+      throw new ForbiddenException('You are not authorized to update this profile.');
+    }
+    return user;
+  }
+
+  private async _applyProfileDataUpdates(
+    user: UserDocument,
+    updateUserDto: UpdateUserDto,
+  ): Promise<boolean> {
+    user.profile = user.profile || {};
+    let profileChanged = false;
+
+    if (updateUserDto.displayName !== undefined) {
+      const updateResult = await this._updateProfileField(user, 'displayName', updateUserDto.displayName);
+      if (updateResult) {
+        profileChanged = true;
+      }
+    }
+
+    if (updateUserDto.bio !== undefined) {
+      const updateResult = await this._updateProfileField(user, 'bio', updateUserDto.bio);
+      if (updateResult) {
+        profileChanged = true;
+      }
+    }
+    return profileChanged;
+  }
+
+  private async _updateProfileField(
+    user: UserDocument,
+    field: 'displayName' | 'bio',
+    value: string | undefined,
+  ): Promise<boolean> {
+    const trimmedValue = value?.trim();
+    const currentValue = user.profile?.[field];
+    const newValue = trimmedValue === '' ? undefined : trimmedValue;
+
+    if (currentValue !== newValue) {
+      if (!user.profile) {
+        user.profile = {};
+      }
+      user.profile[field] = newValue;
+      return true;
+    }
+    return false;
+  }
+
+  // --- Private Helper Methods: Avatar Management (for uploadProfileImage, deleteAvatar) ---
+  private async _handleCloudinaryUpload(file: File, existingPublicId?: string): Promise<{ secure_url: string; public_id: string }> {
+    if (existingPublicId) {
+      await this._deleteOldCloudinaryImage(existingPublicId);
     }
 
     let uploadResult;
@@ -321,82 +452,32 @@ export class UsersService {
         'Profile image upload failed: Cloudinary did not return expected details.',
       );
     }
-
-    user.profile.avatarUrl = uploadResult.secure_url;
-    user.profile.profileImagePublicId = uploadResult.public_id;
-
-    user.markModified('profile'); // Explicitly mark the 'profile' path as modified
-    const updatedUser = await user.save();
-    return this._toUserObject(updatedUser);
+    return { secure_url: uploadResult.secure_url, public_id: uploadResult.public_id };
   }
 
-  /**
-   * Deletes a user's profile image.
-   */
-  async deleteAvatar(
-    userId: string, // Restored userId parameter name
-    requester: { id: string; role: string },
-  ): Promise<Omit<UserDocument, 'passwordHash'>> { 
+  private async _findUserAndValidateProfileImage(userId: string): Promise<UserDocument> {
     if (!Types.ObjectId.isValid(userId)) {
       throw new BadRequestException('Invalid user ID format.');
     }
     const user = await this.userModel.findById(userId).exec();
     assertUserFound(user);
 
-    if (userId !== requester.id && requester.role !== 'admin') {
-      throw new ForbiddenException('You are not authorized to delete this avatar.');
+    if (!user.profile?.profileImagePublicId) { 
+      throw new NotFoundException('User does not have a profile image to delete.');
     }
+    return user;
+  }
 
-    user.profile = user.profile || {};
-
-    if (user.profile.profileImagePublicId) {
-      await this._deleteOldCloudinaryImage(user.profile.profileImagePublicId);
-      user.profile.avatarUrl = undefined; 
-      user.profile.profileImagePublicId = undefined; 
-      user.markModified('profile'); // Explicitly mark the 'profile' path as modified
-    } else {
-      console.log(`User ${userId} has no avatar to delete.`);
+  private _clearUserProfileImageDetails(user: UserDocument): void {
+    if (user.profile) {
+        user.profile.avatarUrl = undefined;
+        user.profile.profileImagePublicId = undefined;
+        user.markModified('profile');
     }
-
-    const updatedUser = await user.save();
-    return this._toUserObject(updatedUser);
-  }
-  async updateUserRole(
-  targetUserId: string,
-  newRole: 'user' | 'admin',
-  requester: { id: string; role: string }, // Added requester
-): Promise<Omit<UserDocument, 'passwordHash'>> {
-  if (!Types.ObjectId.isValid(targetUserId)) {
-    throw new BadRequestException('Invalid target user ID format.');
   }
 
-  // Prevent admin from changing their own role
-  if (requester.id === targetUserId) {
-    throw new BadRequestException('Admins cannot change their own role using this endpoint.');
-  }
-
-  const user = await this.userModel.findById(targetUserId).exec();
-  assertUserFound(user); // Your existing utility to throw NotFoundException if null
-
-  if (user.role === newRole) {
-    // Optional: throw BadRequest or simply return user if role is already set
-    // console.log(`User ${targetUserId} already has role ${newRole}.`);
-    // return this._toUserObject(user);
-    throw new BadRequestException(`User already has the role \'${newRole}\'.`);
-  }
-
-  user.role = newRole;
-  const updatedUser = await user.save();
-  return this._toUserObject(updatedUser);
-}
-
-
-  // --- deleteUser method ---
-  async deleteUser(
-    targetUserId: string,
-    confirmPassword: string,
-    requester: { id: string; role: string },
-  ): Promise<{ message: string }> {
+  // --- Private Helper Methods: User Deletion (for deleteUser) ---
+  private async _findUserForDeletion(targetUserId: string, requester: { id: string; role: string }): Promise<UserDocument> {
     if (!Types.ObjectId.isValid(targetUserId)) {
       throw new BadRequestException('Invalid target user ID format.');
     }
@@ -407,28 +488,27 @@ export class UsersService {
 
     const user = await this.userModel.findById(targetUserId).select('+passwordHash').exec();
     assertUserFound(user);
+    return user;
+  }
 
-    // If user is deleting their own account, or if your policy requires password for admin deletion
-    if (targetUserId === requester.id) { // Simplified: only ask for password if self-deleting
-      if (!confirmPassword) {
-        throw new BadRequestException('Password confirmation is required to delete your own account.');
-      }
-      const isPasswordConfirmed = await bcrypt.compare(confirmPassword, user.passwordHash);
-      if (!isPasswordConfirmed) {
-        throw new UnauthorizedException('Password confirmation failed.');
-      }
+  private async _confirmPasswordForDeletion(user: UserDocument, confirmPassword?: string): Promise<void> {
+    if (!user.passwordHash) { 
+        throw new InternalServerErrorException('User password data is missing for confirmation.');
     }
+    if (!confirmPassword) {
+      throw new BadRequestException('Password confirmation is required to delete your own account.');
+    }
+    const isPasswordConfirmed = await bcrypt.compare(confirmPassword, user.passwordHash);
+    if (!isPasswordConfirmed) {
+      throw new UnauthorizedException('Password confirmation failed.');
+    }
+  }
 
+  private async _deleteAssociatedUserData(user: UserDocument): Promise<void> {
     await this.cheekModel.deleteMany({ owner: user._id });
-    await this.reviewModel.deleteMany({ userId: user._id }); // Ensure 'userId' is the correct field in Review schema
+    await this.reviewModel.deleteMany({ userId: user._id }); 
     if (user.profile?.profileImagePublicId) {
       await this._deleteOldCloudinaryImage(user.profile.profileImagePublicId);
     }
-
-    await this.userModel.findByIdAndDelete(user._id);
-
-    return {
-      message: 'User and all associated data (cheeks, reviews, avatar) have been deleted.',
-    };
   }
 }

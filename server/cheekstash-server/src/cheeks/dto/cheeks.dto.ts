@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNumber, ArrayMinSize , ValidateNested , IsBoolean, IsArray, IsOptional, IsMongoId, IsNotEmpty } from 'class-validator';
 import { Type } from 'class-transformer';
 import { LinkDto } from './link.dto';
+import { Types } from 'mongoose';
 
 export class CheeksDto {
   @ApiProperty({
@@ -25,7 +26,7 @@ export class CheeksDto {
   })
   @IsMongoId()
   @IsNotEmpty()
-  categoryId: string;
+  categoryId: string | Types.ObjectId;
 
   @ApiProperty({
     example: ['artificial-intelligence', 'machine-learning'],

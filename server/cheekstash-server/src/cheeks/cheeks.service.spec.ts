@@ -204,7 +204,10 @@ describe('CheeksService', () => {
                 owner: ownerId,
                 save: jest.fn().mockResolvedValue({ ...cheekDocMock({ _id: id, owner: ownerId, ...updateDto }), populate: jest.fn().mockResolvedValue({ ...cheekDocMock({ _id: id, owner: ownerId, ...updateDto }) }) }),
             };
-            CheeksModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(cheek) });
+            CheeksModel.findById.mockReturnValue({
+                select: jest.fn().mockReturnThis(),
+                exec: jest.fn().mockResolvedValue(cheek),
+            });
             service.generateUniqueSlug = jest.fn().mockResolvedValue('slug'); // Patch slug generation
             const result = await service.updateCheeks(id, updateDto, ownerId);
             expect(CheeksModel.findById).toHaveBeenCalledWith(id);
@@ -214,7 +217,10 @@ describe('CheeksService', () => {
             const id = '507f1f77bcf86cd799439011';
             const updateDto = { title: 'Updated' };
             const cheek = { _id: id, owner: 'otherUser', save: jest.fn() };
-            CheeksModel.findById.mockReturnValue({ exec: jest.fn().mockResolvedValue(cheek) });
+            CheeksModel.findById.mockReturnValue({
+                select: jest.fn().mockReturnThis(),
+                exec: jest.fn().mockResolvedValue(cheek),
+            });
             await expect(service.updateCheeks(id, updateDto, '507f1f77bcf86cd799439011')).rejects.toThrow(ForbiddenException);
         });
     });
