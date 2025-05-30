@@ -1,51 +1,48 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - Develop 
   pull_request:
     branches:
-      - Develop 
+      - Develop
+  push:
+    branches:
+      - Develop
 
 jobs:
-  test:
-    name: Test 
+  test_pull_request:
+    name: Test Pull Request
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     env:
-   
       MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
       MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
-     
       DATABASE_URI: mongodb://${{ secrets.MONGO_INITDB_ROOT_USERNAME }}:${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}@localhost:27017/my_local_app_db_test?authSource=admin
-
     services:
       mongo:
         image: mongo:latest
-        ports: 
+        ports:
           - 27017:27017
         env:
           MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_INITDB_ROOT_USERNAME }}
           MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_INITDB_ROOT_PASSWORD }}
-        options: >- 
+        options: >-
           --health-cmd "mongosh \"mongodb://$MONGO_INITDB_ROOT_USERNAME:$MONGO_INITDB_ROOT_PASSWORD@localhost:27017/admin?authSource=admin\" --eval \"db.adminCommand('ping')\" --quiet"
           --health-interval 20s
           --health-timeout 10s
           --health-retries 10
           --health-start-period 30s
-
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4 
+        uses: actions/checkout@v4
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4 
+        uses: actions/setup-node@v4
         with:
-          node-version: "22" 
+          node-version: "22"
 
       - name: Install dependencies
         run: npm install
-        working-directory: server/cheekstash-server 
+        working-directory: server/cheekstash-server
 
       - name: Run unit tests
         run: npm run test -- --runInBand
@@ -55,16 +52,81 @@ jobs:
         run: npm run test:int
         working-directory: server/cheekstash-server
 
-  deploy:
-    if: github.ref == 'refs/heads/Develop' && github.event_name == 'push'
-    name: Deploy to Render
-    needs: [test] 
+  test_and_deploy_on_push:
+    name: Test (if direct push) & Deploy Develop
+    if: github.event_name == 'push' && github.ref == 'refs/heads/Develop'
     runs-on: ubuntu-latest
-
+    env:
+      MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
+      MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
+      DATABASE_URI: mongodb://${{ secrets.MONGO_INITDB_ROOT_USERNAME }}:${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}@localhost:27017/my_local_app_db_test?authSource=admin
+    services:
+      mongo:
+        image: mongo:latest
+        ports:
+          - 27017:27017
+        env:
+          MONGO_INITDB_ROOT_USERNAME: ${{ env.MONGO_INITDB_ROOT_USERNAME }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ env.MONGO_INITDB_ROOT_PASSWORD }}
+        options: >-
+          --health-cmd "mongosh \"mongodb://$MONGO_INITDB_ROOT_USERNAME:$MONGO_INITDB_ROOT_PASSWORD@localhost:27017/admin?authSource=admin\" --eval \"db.adminCommand('ping')\" --quiet"
+          --health-interval 20s
+          --health-timeout 10s
+          --health-retries 10
+          --health-start-period 30s
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: server/cheekstash-server
+
+      - name: Debug Commit Message and Event Context (for push events)
+        if: github.event_name == 'push' # Only run this debug step for push events
+        run: |
+          echo "EVENT NAME: ${{ github.event_name }}"
+          echo "REF: ${{ github.ref }}"
+          echo "HEAD COMMIT MESSAGE: ${{ github.event.head_commit.message }}"
+          echo "COMMIT SHA: ${{ github.sha }}"
+          echo "HEAD COMMIT ID: ${{ github.event.head_commit.id }}"
+          echo "COMMIT AUTHOR: ${{ github.event.head_commit.author.name }} <${{ github.event.head_commit.author.email }}>"
+          echo "COMMITTER: ${{ github.event.head_commit.committer.name }} <${{ github.event.head_commit.committer.email }}>"
+
+      - name: Run unit tests (on direct push)
+        run: |
+          COMMIT_MESSAGE="${{ github.event.head_commit.message }}"
+          echo "Unit Test Check - Commit Message: $COMMIT_MESSAGE"
+          # Using Bash pattern matching: == "Merge pull request"*
+          if [[ "$COMMIT_MESSAGE" == "Merge pull request"* ]]; then
+            echo "Skipping unit tests for PR merge commit (Message starts with 'Merge pull request').";
+            exit 0;
+          fi
+          echo "Proceeding with unit tests..."
+          npm run test -- --runInBand
+        working-directory: server/cheekstash-server
+
+      - name: Run integration tests (on direct push)
+        run: |
+          COMMIT_MESSAGE="${{ github.event.head_commit.message }}"
+          echo "Integration Test Check - Commit Message: $COMMIT_MESSAGE"
+          if [[ "$COMMIT_MESSAGE" == "Merge pull request"* ]]; then
+            echo "Skipping integration tests for PR merge commit (Message starts with 'Merge pull request').";
+            exit 0;
+          fi
+          echo "Proceeding with integration tests..."
+          npm run test:int
+        working-directory: server/cheekstash-server
+
       - name: Trigger Render Deploy Hook
         uses: johnbeynon/render-deploy-action@v0.0.8
         with:
-          service-id: ${{ secrets.RENDER_SERVICE_ID }} 
-
+          service-id: ${{ secrets.RENDER_SERVICE_ID }}
           api-key: ${{ secrets.RENDER_API_KEY }}
