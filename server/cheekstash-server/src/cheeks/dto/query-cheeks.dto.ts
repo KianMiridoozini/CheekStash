@@ -68,4 +68,13 @@ export class QueryCheeksDto {
     @IsNumber()
     @Min(1)
     limit?: number;
+
+    @ApiPropertyOptional({
+        description: 'Sort by: recent, rating, alpha, reviewCount, etc.',
+        enum: ['recent', 'oldest', 'rating', 'reviewCount', 'alpha', 'alphaDesc'],
+        default: 'recent',
+    })
+    @IsOptional()
+    @IsString()
+    sortBy?: 'recent' | 'oldest' | 'rating' | 'reviewCount' | 'alpha' | 'alphaDesc';
 }

@@ -43,6 +43,12 @@ export class Cheeks {
     description?: string;
     order: number;
   }[];
+
+  @Prop({ default: 0 })
+  averageRating: number;
+
+  @Prop({ default: 0 })
+  reviewCount: number;
 }
 
 export const CheeksSchema = SchemaFactory.createForClass(Cheeks);

@@ -33,7 +33,7 @@ export class CheekListComponent implements OnInit, OnDestroy {
   noCheeksFound: boolean = false;
 
   initialSearchFilters: InitialSearchFilters = {};
-  currentSortBy: string = 'recent';
+  currentSortBy: 'recent' | 'oldest' | 'rating' | 'reviewCount' | 'alpha' | 'alphaDesc' = 'recent';
 
   // Pagination state
   currentPage: number = 1;
@@ -83,7 +83,7 @@ export class CheekListComponent implements OnInit, OnDestroy {
     ).subscribe(({ filters, sortBy }) => {
       // Update properties that are @Input to CheekSearchComponent or used for sorting
       this.initialSearchFilters = filters; 
-      this.currentSortBy = sortBy;
+      this.currentSortBy = sortBy as 'recent' | 'oldest' | 'rating' | 'reviewCount' | 'alpha' | 'alphaDesc';
     });
   }
 
@@ -149,6 +149,7 @@ export class CheekListComponent implements OnInit, OnDestroy {
       tagIds: criteria.tagIds,
       page: pageToRequest,
       limit: limitToRequest,
+      sortBy: this.currentSortBy
     };
 
     this.cheeksService.getAllCheeksPaginated(serviceParams).pipe(
@@ -251,7 +252,7 @@ export class CheekListComponent implements OnInit, OnDestroy {
   }
 
   onSortChange(event: Event): void {
-    const newSortBy = (event.target as HTMLSelectElement).value;
+    const newSortBy = (event.target as HTMLSelectElement).value as 'recent' | 'oldest' | 'rating' | 'reviewCount' | 'alpha' | 'alphaDesc';
     if (this.currentSortBy === newSortBy) {
       return;
     }
@@ -271,42 +272,27 @@ export class CheekListComponent implements OnInit, OnDestroy {
       replaceUrl: true
     });
 
-    this.applyClientSideSorting();
+    if (this.currentSearchCriteria) {
+      this.cheeks = [];
+      this.allCheeksLoaded = false;
+      this.totalCheeksFromServer = 0;
+      this.currentPage = 1;
+      this.loadCheeks(this.currentSearchCriteria, true);
+    }
   }
 
-  applyClientSideSorting(): void {
-    if (!this.cheeks || this.cheeks.length === 0) {
-      return;
-    }
+  // Utility: Get category name from cheek (handles object structure)
+  getCategoryName(cheek: Cheek): string {
+    return cheek.categoryId && typeof cheek.categoryId === 'object' && 'name' in cheek.categoryId
+      ? cheek.categoryId.name
+      : '';
+  }
 
-    const sortedCheeks = [...this.cheeks];
-
-    const fallbackDateA = new Date(0); // Very old date
-
-    switch (this.currentSortBy) {
-      case 'recent':
-        sortedCheeks.sort((a, b) =>
-          new Date(b.createdAt || fallbackDateA).getTime() - new Date(a.createdAt || fallbackDateA).getTime()
-        );
-        break;
-      case 'rating-desc':
-        sortedCheeks.sort((a, b) => (b.averageRating ?? 0) - (a.averageRating ?? 0));
-        break;
-      case 'rating-asc':
-        sortedCheeks.sort((a, b) => (a.averageRating ?? 0) - (b.averageRating ?? 0));
-        break;
-      case 'alpha-asc':
-        sortedCheeks.sort((a, b) => a.title.localeCompare(b.title));
-        break;
-      case 'alpha-desc':
-        sortedCheeks.sort((a, b) => b.title.localeCompare(a.title));
-        break;
-      default:
-        // Default to recent if sortBy is unknown
-        sortedCheeks.sort((a, b) =>
-          new Date(b.createdAt || fallbackDateA).getTime() - new Date(a.createdAt || fallbackDateA).getTime()
-        );
-    }
-    this.cheeks = sortedCheeks;
+  // Utility: Get tag names from cheek (handles array of objects)
+  getTagNames(cheek: Cheek): string[] {
+    if (!cheek.tagIds || !Array.isArray(cheek.tagIds)) return [];
+    return cheek.tagIds
+      .filter(tag => tag && typeof tag === 'object' && 'name' in tag)
+      .map(tag => tag.name as string);
   }
 }

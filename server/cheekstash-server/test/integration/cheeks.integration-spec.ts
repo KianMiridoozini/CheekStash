@@ -42,6 +42,11 @@ describe('CheeksController (Integration)', () => {
         // Clear categories collection to avoid duplicates
         const categoryModel = app.get(getModelToken('Category'));
         await categoryModel.deleteMany({});
+        // Clear cheeks and tags collections to ensure test isolation
+        const cheeksModel = app.get(getModelToken('Cheeks'));
+        await cheeksModel.deleteMany({});
+        const tagModel = app.get(getModelToken('Tag'));
+        await tagModel.deleteMany({});
 
         // Register a user
         await request(httpServer).post('/api/users/register').send(userDto);
@@ -205,6 +210,77 @@ describe('CheeksController (Integration)', () => {
                 .delete(`/api/cheeks/${id}`)
                 .set('Authorization', `Bearer ${token}`);
             expect(res.status).toBe(200);
+        });
+    });
+
+    describe('GET /api/cheeks (sorting, pagination, filtering)', () => {
+        let createdCheeks: any[] = [];
+        beforeEach(async () => {
+            // Create multiple cheeks with different titles, ratings, and reviewCounts
+            createdCheeks = [];
+            for (let i = 0; i < 5; i++) {
+                const cheekRes = await request(httpServer)
+                    .post('/api/cheeks')
+                    .set('Authorization', `Bearer ${token}`)
+                    .send({
+                        ...currentCheekDto,
+                        title: `Cheek${i}`,
+                        isPublic: true,
+                        tagNames: [`tag${i}`],
+                    });
+                createdCheeks.push(cheekRes.body);
+            }
+        });
+        it('should sort by recent (default)', async () => {
+            const res = await request(httpServer).get('/api/cheeks');
+            expect(res.status).toBe(200);
+            expect(res.body.cheeks.length).toBeGreaterThan(0);
+            // Most recent first
+            expect(res.body.cheeks[0].title).toContain('Cheek');
+        });
+        it('should sort by oldest', async () => {
+            const res = await request(httpServer).get('/api/cheeks?sortBy=oldest');
+            expect(res.status).toBe(200);
+            expect(res.body.cheeks.length).toBeGreaterThan(0);
+            // Oldest first
+            expect(res.body.cheeks[0].title).toBe('Cheek0');
+        });
+        it('should sort by alpha', async () => {
+            const res = await request(httpServer).get('/api/cheeks?sortBy=alpha');
+            expect(res.status).toBe(200);
+            const titles = res.body.cheeks.map((c: any) => c.title);
+            const sorted = [...titles].sort();
+            expect(titles).toEqual(sorted);
+        });
+        it('should sort by alphaDesc', async () => {
+            const res = await request(httpServer).get('/api/cheeks?sortBy=alphaDesc');
+            expect(res.status).toBe(200);
+            const titles = res.body.cheeks.map((c: any) => c.title);
+            const sorted = [...titles].sort().reverse();
+            expect(titles).toEqual(sorted);
+        });
+        it('should support pagination', async () => {
+            const res = await request(httpServer).get('/api/cheeks?page=2&limit=2');
+            expect(res.status).toBe(200);
+            expect(res.body.cheeks.length).toBeLessThanOrEqual(2);
+        });
+        it('should filter by categoryId', async () => {
+            // categoryId may be an object, so extract _id if needed
+            const rawCategoryId = createdCheeks[0].categoryId;
+            const categoryId = typeof rawCategoryId === 'object' && rawCategoryId !== null && '_id' in rawCategoryId ? rawCategoryId._id : rawCategoryId;
+            const res = await request(httpServer).get(`/api/cheeks?categoryIds=${categoryId}`);
+            expect(res.status).toBe(200);
+            // Compare c.categoryId._id to categoryId
+            expect(res.body.cheeks.every((c: any) => c.categoryId && c.categoryId._id && c.categoryId._id.toString() === categoryId.toString())).toBe(true);
+        });
+        it('should filter by tagId', async () => {
+            // tagId may be an object, so extract _id if needed
+            const rawTagId = createdCheeks[0].tagIds[0];
+            const tagId = typeof rawTagId === 'object' && rawTagId !== null && '_id' in rawTagId ? rawTagId._id : rawTagId;
+            const res = await request(httpServer).get(`/api/cheeks?tagIds=${tagId}`);
+            expect(res.status).toBe(200);
+            // Compare each tag's _id to tagId
+            expect(res.body.cheeks.every((c: any) => Array.isArray(c.tagIds) && c.tagIds.some((t: any) => t && t._id && t._id.toString() === tagId.toString()))).toBe(true);
         });
     });
 });

@@ -69,7 +69,7 @@ describe('ReviewsController (Integration)', () => {
     });
 
     describe('POST /api/reviews', () => {
-        it('should create a review for a cheek by a non-owner', async () => {
+        it('should create a review for a cheek by a non-owner and update cheek stats', async () => {
             const dto = { cheekId: cheek._id.toString(), rating: 4, review: 'Great cheek!' };
             const res = await request(httpServer)
                 .post('/api/reviews')
@@ -80,6 +80,9 @@ describe('ReviewsController (Integration)', () => {
             expect(res.body.rating).toBe(4);
             expect(res.body.review).toBe('Great cheek!');
             expect(res.body.user.username).toBe(user.username);
+            const updatedCheek = await cheekModel.findById(cheek._id).lean();
+            expect(updatedCheek && updatedCheek.averageRating).toBe(4);
+            expect(updatedCheek && updatedCheek.reviewCount).toBe(1);
         });
         it('should not allow the owner to review their own cheek', async () => {
             const dto = { cheekId: cheek._id.toString(), rating: 5, review: 'My own cheek' };
@@ -174,7 +177,7 @@ describe('ReviewsController (Integration)', () => {
     });
 
     describe('PUT /api/reviews/:reviewId', () => {
-        it('should update a review by owner', async () => {
+        it('should update a review by owner and update cheek stats', async () => {
             const review = await reviewModel.create({ cheekId: cheek._id, userId: user._id, username: user.username, rating: 3, review: 'Old', createdAt: new Date(), updatedAt: new Date() });
             const dto = { rating: 5, review: 'Updated!' };
             const res = await request(httpServer)
@@ -184,6 +187,9 @@ describe('ReviewsController (Integration)', () => {
             expect(res.status).toBe(200);
             expect(res.body.rating).toBe(5);
             expect(res.body.review).toBe('Updated!');
+            const updatedCheek = await cheekModel.findById(cheek._id).lean();
+            expect(updatedCheek && updatedCheek.averageRating).toBe(5);
+            expect(updatedCheek && updatedCheek.reviewCount).toBe(1);
         });
         it('should not allow non-owner to update', async () => {
             const review = await reviewModel.create({ cheekId: cheek._id, userId: user._id, username: user.username, rating: 3, review: 'Old', createdAt: new Date(), updatedAt: new Date() });
@@ -197,13 +203,16 @@ describe('ReviewsController (Integration)', () => {
     });
 
     describe('DELETE /api/reviews/:reviewId', () => {
-        it('should delete a review by owner', async () => {
+        it('should delete a review by owner and update cheek stats', async () => {
             const review = await reviewModel.create({ cheekId: cheek._id, userId: user._id, username: user.username, rating: 3, review: 'To delete', createdAt: new Date(), updatedAt: new Date() });
             const res = await request(httpServer)
                 .delete(`/api/reviews/${review._id}`)
                 .set('Authorization', `Bearer ${userToken}`);
             expect(res.status).toBe(200);
             expect(res.body.message).toMatch(/deleted/i);
+            const updatedCheek = await cheekModel.findById(cheek._id).lean();
+            expect(updatedCheek && updatedCheek.averageRating).toBe(0);
+            expect(updatedCheek && updatedCheek.reviewCount).toBe(0);
         });
         it('should not allow non-owner to delete', async () => {
             const review = await reviewModel.create({ cheekId: cheek._id, userId: user._id, username: user.username, rating: 3, review: 'To delete', createdAt: new Date(), updatedAt: new Date() });

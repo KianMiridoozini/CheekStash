@@ -22,6 +22,7 @@ const mockCheeksService = {
     getCheeksById: jest.fn(),
     findCheekOwnerAndVisibility: jest.fn(),
     findCheekByUsernameAndSlug: jest.fn(),
+    recalculateAndUpdateCheekStats: jest.fn(),
 };
 const mockUsersService = {};
 
@@ -67,6 +68,7 @@ describe('ReviewsService', () => {
         const validUserId = '507f1f77bcf86cd799439013';
         it('should create and return a review', async () => {
             cheeksService.getCheeksById.mockResolvedValue({ _id: validCheekId, owner: 'otherUser' });
+            cheeksService.recalculateAndUpdateCheekStats.mockResolvedValue(undefined); // <-- mock stat update
             model.findOne.mockResolvedValue(null);
             model.mockImplementationOnce(() => ({
                 save: jest.fn().mockResolvedValue({ _id: validReviewId }),
@@ -88,6 +90,7 @@ describe('ReviewsService', () => {
             const result = await service.createReview(dto as any, validUserId, 'user');
             expect(result.rating).toBe(5);
             expect(result.review).toBe('Great!');
+            expect(cheeksService.recalculateAndUpdateCheekStats).toHaveBeenCalledWith(validCheekId);
         });
         it('should throw ForbiddenException if reviewing own cheek', async () => {
             cheeksService.getCheeksById.mockResolvedValue({ _id: validCheekId, owner: validUserId });
@@ -178,6 +181,7 @@ describe('ReviewsService', () => {
         const validUserId = '507f1f77bcf86cd799439013';
         it('should update and return the review', async () => {
             const review = mockReview({ _id: validReviewId, userId: validUserId });
+            cheeksService.recalculateAndUpdateCheekStats.mockResolvedValue(undefined);
             model.findOne.mockResolvedValue(review);
             review.save = jest.fn().mockResolvedValue({ ...review, review: 'Updated' });
             model.findById.mockReturnValue({
@@ -187,6 +191,7 @@ describe('ReviewsService', () => {
             });
             const result = await service.updateReview(validReviewId, { review: 'Updated' }, validUserId);
             expect(result.review).toBe('Updated');
+            expect(cheeksService.recalculateAndUpdateCheekStats).toHaveBeenCalledWith(review.cheekId);
         });
         it('should throw NotFoundException if not found', async () => {
             model.findOne.mockResolvedValue(null);
@@ -198,9 +203,14 @@ describe('ReviewsService', () => {
         const validReviewId = '507f1f77bcf86cd799439012';
         const validUserId = '507f1f77bcf86cd799439013';
         it('should delete and return message', async () => {
+            // Add a mock for cheeksService.recalculateAndUpdateCheekStats
+            cheeksService.recalculateAndUpdateCheekStats.mockResolvedValue(undefined);
+            // Mock reviewToDelete
+            model.findOne.mockResolvedValue({ _id: validReviewId, userId: validUserId, cheekId: 'cheekId' });
             model.deleteOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({ deletedCount: 1 }) });
             const result = await service.deleteReview(validReviewId, validUserId);
             expect(result).toEqual({ message: 'Review deleted successfully' });
+            expect(cheeksService.recalculateAndUpdateCheekStats).toHaveBeenCalledWith('cheekId');
         });
         it('should throw NotFoundException if not found', async () => {
             model.deleteOne.mockReturnValue({ exec: jest.fn().mockResolvedValue({ deletedCount: 0 }) });
