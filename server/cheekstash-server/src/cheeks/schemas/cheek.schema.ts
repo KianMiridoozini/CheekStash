@@ -18,7 +18,7 @@ export class Cheeks {
   tagIds: Types.ObjectId[]; 
 
   @Prop({ required: true, type: Types.ObjectId, ref: 'Category', index: true })
-  categoryId: Types.ObjectId;
+  categoryId: string | Types.ObjectId;
 
   @Prop({ required: true, type: Types.ObjectId, ref: 'User' })
   owner: Types.ObjectId;

@@ -16,6 +16,7 @@ Object.assign(mockReviewModel, {
     findByIdAndUpdate: jest.fn(),
     deleteOne: jest.fn(),
     create: jest.fn(),
+    countDocuments: jest.fn(),
 });
 
 const mockCheeksService = {
@@ -107,14 +108,25 @@ describe('ReviewsService', () => {
 
     describe('getReviewsForCheek', () => {
         const validCheekId = '507f1f77bcf86cd799439011';
+        function makeQueryChainMock(result: any) {
+            return {
+                sort: jest.fn().mockReturnThis(),
+                skip: jest.fn().mockReturnThis(),
+                limit: jest.fn().mockReturnThis(),
+                populate: jest.fn().mockReturnThis(),
+                lean: jest.fn().mockReturnThis(),
+                select: jest.fn().mockReturnThis(),
+                exec: jest.fn().mockResolvedValue(result),
+            };
+        }
         it('should return reviews and stats', async () => {
             cheeksService.findCheekOwnerAndVisibility.mockResolvedValue({ owner: 'user1', isPublic: true });
             const reviews = [mockReview({ rating: 5 }), mockReview({ rating: 4 })];
-            model.find.mockReturnValue({
-                populate: jest.fn().mockReturnThis(),
-                lean: jest.fn().mockReturnThis(),
-                exec: jest.fn().mockResolvedValue(reviews),
-            });
+            model.find.mockImplementation(() => makeQueryChainMock(reviews));
+            model.countDocuments.mockResolvedValue(reviews.length);
+            // Also mock for stats calculation (allReviewsForStats)
+            model.find.mockImplementationOnce(() => makeQueryChainMock(reviews))
+                .mockImplementationOnce(() => makeQueryChainMock(reviews));
             const result = await service.getReviewsForCheek(validCheekId);
             expect(result.reviews.length).toBe(2);
             expect(result.averageRating).toBe(4.5);
